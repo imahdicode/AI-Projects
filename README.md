@@ -41,17 +41,17 @@ You will need **two terminal windows**: one for the Backend (Spring Boot) and on
 This is the easiest way to run the project instantly without setting up PostgreSQL or Docker.
 
 #### Step 1: Start Backend (Terminal 1)
-Open PowerShell or Terminal in the project root:
+Open PowerShell inside the `backend` directory and run:
 ```powershell
 cd backend
-.\mvnw spring-boot:run -Dspring-boot.run.profiles=h2
+.\mvnw spring-boot:run "-Dspring-boot.run.profiles=h2"
 ```
-*(On Linux/macOS, use `./mvnw spring-boot:run -Dspring-boot.run.profiles=h2`)*
+*(Note: Keep the double quotes around `"-Dspring-boot.run.profiles=h2"` in PowerShell so it parses correctly).*
 
 The backend server will start on **`http://localhost:8080`**.
 
 #### Step 2: Start Frontend (Terminal 2)
-Open a new PowerShell or Terminal window in the project root:
+Open a second PowerShell window in the project root:
 ```powershell
 cd frontend
 npm install
@@ -64,14 +64,13 @@ Open your browser at **`http://localhost:5173`**.
 
 ### Method 2: Running with PostgreSQL Database
 
-If you have PostgreSQL installed on your system:
+If you have PostgreSQL running on your system:
 
 #### Step 1: Ensure PostgreSQL Database Exists
 Ensure PostgreSQL is running and create the database `mediscript_db`:
 ```sql
 CREATE DATABASE mediscript_db;
 ```
-*(Optionally adjust username/password in `backend/src/main/resources/application.properties`)*
 
 #### Step 2: Start Backend (Terminal 1)
 ```powershell
