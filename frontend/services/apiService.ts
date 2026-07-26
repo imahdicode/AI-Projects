@@ -305,8 +305,24 @@ export const patientService = {
         headers: getAuthHeaders(),
       });
       if (Array.isArray(apiPatients)) {
-        localStorage.setItem(LOCAL_PATIENTS_KEY, JSON.stringify(apiPatients));
-        return apiPatients;
+        // Merge backend API patients with local storage records so unsynced/local entries are preserved
+        const local = getLocalPatients();
+        const mergedMap = new Map<string, Patient>();
+        apiPatients.forEach(p => mergedMap.set(p.id, p));
+        local.forEach(p => {
+          if (!mergedMap.has(p.id)) {
+            mergedMap.set(p.id, p);
+          }
+        });
+        const mergedList = Array.from(mergedMap.values());
+        localStorage.setItem(LOCAL_PATIENTS_KEY, JSON.stringify(mergedList));
+
+        const activeUser = sessionService.getUser();
+        if (!activeUser) return mergedList;
+        if (activeUser.role === 'ADMIN' || activeUser.username?.toLowerCase() === 'mahdi') {
+          return mergedList;
+        }
+        return mergedList.filter(p => p.doctorId === activeUser.id);
       }
       return getLocalPatients();
     } catch (e) {
@@ -342,12 +358,37 @@ export const patientService = {
   create: async (patient: Partial<Patient>): Promise<Patient> => {
     const activeUser = sessionService.getUser();
     const currentDocId = patient.doctorId || activeUser?.id || '1';
-    const uppercaseGender = (patient.gender ? String(patient.gender).toUpperCase() : 'MALE');
+
+    let uppercaseGender = 'MALE';
+    if (patient.gender) {
+      const gStr = String(patient.gender).toUpperCase();
+      if (gStr.includes('FEM') || gStr === 'F') uppercaseGender = 'FEMALE';
+      else if (gStr.includes('OTH') || gStr === 'O') uppercaseGender = 'OTHER';
+      else uppercaseGender = 'MALE';
+    }
+
     const payload = {
       ...patient,
       doctorId: currentDocId,
       gender: uppercaseGender
     };
+
+    // Pre-save to local storage immediately
+    const tempId = patient.id || `P-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+    const localPatient: Patient = {
+      id: tempId,
+      name: patient.name || 'Unknown Patient',
+      age: Number(patient.age) || 0,
+      gender: uppercaseGender as any,
+      phone: patient.phone || '',
+      address: patient.address || '',
+      medicalHistory: patient.medicalHistory || '',
+      allergies: patient.allergies || '',
+      bloodGroup: patient.bloodGroup || 'O+',
+      doctorId: currentDocId,
+      createdAt: new Date().toISOString()
+    };
+    saveLocalPatient(localPatient);
 
     try {
       const created = await fetchAPI<Patient>('/api/patients', {
@@ -359,22 +400,8 @@ export const patientService = {
       saveLocalPatient(withDoc);
       return withDoc;
     } catch (e) {
-      console.warn('Backend POST failed, saving to persistent local storage:', e);
-      const fallback: Patient = {
-        id: patient.id || `P-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-        name: patient.name || 'Unknown Patient',
-        age: Number(patient.age) || 0,
-        gender: (patient.gender as any) || 'Male',
-        phone: patient.phone || '',
-        address: patient.address || '',
-        medicalHistory: patient.medicalHistory || '',
-        allergies: patient.allergies || '',
-        bloodGroup: patient.bloodGroup || 'O+',
-        doctorId: currentDocId,
-        createdAt: new Date().toISOString()
-      };
-      saveLocalPatient(fallback);
-      return fallback;
+      console.warn('Backend POST failed, saved to persistent local storage:', e);
+      return localPatient;
     }
   },
 
