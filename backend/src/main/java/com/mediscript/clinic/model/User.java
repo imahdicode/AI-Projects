@@ -3,6 +3,7 @@ package com.mediscript.clinic.model;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 
 @Entity
 @Table(name = "doctors")
@@ -19,6 +20,17 @@ public class User {
     private String role;
     private String assignedBranchId;
     private String status; // "PENDING" = not yet activated, "ACTIVE" = can log in
+
+    @Transient
+    private String token;
+
+    public String getToken() {
+        return token;
+    }
+
+    public void setToken(String token) {
+        this.token = token;
+    }
 
     public User() {
     }

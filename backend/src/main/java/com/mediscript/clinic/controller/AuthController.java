@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,6 +23,12 @@ public class AuthController {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private com.mediscript.clinic.security.JwtUtils jwtUtils;
 
     // ── LOGIN ──────────────────────────────────────────────────────────────
     @PostMapping("/login")
@@ -51,14 +58,23 @@ public class AuthController {
             );
         }
 
-        // Password check (plain text comparison for clinic internal use)
+        // Password check (BCrypt with fallback plain text upgrade)
         String expectedPassword = user.getPassword() != null ? user.getPassword() : "";
         String providedPassword = request.getPassword() != null ? request.getPassword() : "";
 
-        if (!expectedPassword.equals(providedPassword)) {
+        boolean matches = passwordEncoder.matches(providedPassword, expectedPassword);
+        if (!matches && expectedPassword.equals(providedPassword)) {
+            matches = true;
+            // Upgrade plain text password to BCrypt hash
+            user.setPassword(passwordEncoder.encode(providedPassword));
+            userRepository.save(user);
+        }
+
+        if (!matches) {
             return ResponseEntity.status(401).body("Incorrect password.");
         }
 
+        user.setToken(jwtUtils.generateToken(user));
         return ResponseEntity.ok(user);
     }
 
@@ -131,9 +147,9 @@ public class AuthController {
             );
         }
 
-        // Activate the account
+        // Activate the account with BCrypt hashed password
         doctor.setUsername(cleanUsername);
-        doctor.setPassword(req.getPassword());
+        doctor.setPassword(passwordEncoder.encode(req.getPassword()));
         doctor.setStatus("ACTIVE");
 
         return ResponseEntity.ok(userRepository.save(doctor));

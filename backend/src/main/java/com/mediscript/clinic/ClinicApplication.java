@@ -26,7 +26,8 @@ public class ClinicApplication {
             ClinicSettingsRepository settingsRepository, 
             MedicineTemplateRepository templateRepository,
             UserRepository userRepository,
-            ClinicBranchRepository branchRepository) {
+            ClinicBranchRepository branchRepository,
+            org.springframework.security.crypto.password.PasswordEncoder passwordEncoder) {
         return args -> {
             // Seed Clinic Settings
             settingsRepository.findById("default").orElseGet(() -> settingsRepository.save(defaultSettings()));
@@ -47,26 +48,44 @@ public class ClinicApplication {
 
             // Ensure Super Admin 'mahdi' exists in database
             if (userRepository.findByUsernameIgnoreCase("mahdi").isEmpty()) {
-                User admin = new User("1", "mahdi", "admin123", "Mahdi (Super Admin)", "System Administrator & Owner", "ADMIN-001", "+91 99000 00000", "ADMIN");
+                User admin = new User("1", "mahdi", passwordEncoder.encode("admin123"), "Mahdi (Super Admin)", "System Administrator & Owner", "ADMIN-001", "+91 99000 00000", "ADMIN");
                 admin.setStatus("ACTIVE");
                 admin.setAssignedBranchId("branch-1");
                 userRepository.save(admin);
+            } else {
+                User admin = userRepository.findByUsernameIgnoreCase("mahdi").get();
+                if (!admin.getPassword().startsWith("$2a$") && !admin.getPassword().startsWith("$2b$")) {
+                    admin.setPassword(passwordEncoder.encode(admin.getPassword()));
+                    userRepository.save(admin);
+                }
             }
 
             // Ensure Doctor 'farid' exists in database
             if (userRepository.findByUsernameIgnoreCase("farid").isEmpty()) {
-                User docFarid = new User("2", "farid", "password123", "Dr. Farid Ansari", "General Physician", "MCI-2026-4469", "+91 98765 11111", "DOCTOR");
+                User docFarid = new User("2", "farid", passwordEncoder.encode("password123"), "Dr. Farid Ansari", "General Physician", "MCI-2026-4469", "+91 98765 11111", "DOCTOR");
                 docFarid.setStatus("ACTIVE");
                 docFarid.setAssignedBranchId("branch-1");
                 userRepository.save(docFarid);
+            } else {
+                User docFarid = userRepository.findByUsernameIgnoreCase("farid").get();
+                if (!docFarid.getPassword().startsWith("$2a$") && !docFarid.getPassword().startsWith("$2b$")) {
+                    docFarid.setPassword(passwordEncoder.encode(docFarid.getPassword()));
+                    userRepository.save(docFarid);
+                }
             }
 
             // Ensure Doctor 'shoeb' exists in database
             if (userRepository.findByUsernameIgnoreCase("shoeb").isEmpty()) {
-                User docShoeb = new User("3", "shoeb", "password123", "Dr. Shoeb", "Consultant Physician", "MCI-2026-5865", "+91 98765 22222", "DOCTOR");
+                User docShoeb = new User("3", "shoeb", passwordEncoder.encode("password123"), "Dr. Shoeb", "Consultant Physician", "MCI-2026-5865", "+91 98765 22222", "DOCTOR");
                 docShoeb.setStatus("ACTIVE");
                 docShoeb.setAssignedBranchId("branch-2");
                 userRepository.save(docShoeb);
+            } else {
+                User docShoeb = userRepository.findByUsernameIgnoreCase("shoeb").get();
+                if (!docShoeb.getPassword().startsWith("$2a$") && !docShoeb.getPassword().startsWith("$2b$")) {
+                    docShoeb.setPassword(passwordEncoder.encode(docShoeb.getPassword()));
+                    userRepository.save(docShoeb);
+                }
             }
         };
     }

@@ -54,10 +54,14 @@ function getAuthHeaders(): Record<string, string> {
     const raw = sessionStorage.getItem('mediscript_user') || localStorage.getItem('mediscript_user');
     if (!raw) return {};
     const user = JSON.parse(raw);
-    return {
+    const headers: Record<string, string> = {
       'X-Doctor-Id': user.id || '',
       'X-Doctor-Role': user.role || 'DOCTOR',
     };
+    if (user.token) {
+      headers['Authorization'] = `Bearer ${user.token}`;
+    }
+    return headers;
   } catch {
     return {};
   }
