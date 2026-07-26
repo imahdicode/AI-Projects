@@ -117,12 +117,21 @@ export const PatientList: React.FC = () => {
     });
   };
 
-  // Robust CSV Parser Engine with BOM, quote, and header handling
+  // Universal CSV/TSV Parser Engine supporting tabs, commas, semicolons, and headerless rows
   const parsePatientCSV = (rawText: string): Partial<Patient>[] => {
     const cleanText = rawText.replace(/^\uFEFF/, '').trim();
     if (!cleanText) return [];
 
-    // State-machine row splitter (handles quoted multiline fields)
+    // Auto-detect delimiter: tab (\t), semicolon (;), or comma (,)
+    let delimiter = ',';
+    const firstLine = cleanText.split(/[\r\n]+/)[0] || '';
+    if (firstLine.includes('\t')) {
+      delimiter = '\t';
+    } else if (firstLine.includes(';') && !firstLine.includes(',')) {
+      delimiter = ';';
+    }
+
+    // Split rows safely
     const rawRows: string[] = [];
     let currentRow = '';
     let inQuotes = false;
@@ -147,9 +156,9 @@ export const PatientList: React.FC = () => {
       rawRows.push(currentRow);
     }
 
-    if (rawRows.length < 2) return [];
+    if (rawRows.length === 0) return [];
 
-    // Column parser for individual CSV rows
+    // Column parser for individual CSV/TSV rows
     const parseRowCols = (rowStr: string): string[] => {
       const cols: string[] = [];
       let entry = '';
@@ -163,7 +172,7 @@ export const PatientList: React.FC = () => {
           } else {
             inside = !inside;
           }
-        } else if (char === ',' && !inside) {
+        } else if (char === delimiter && !inside) {
           cols.push(entry.trim().replace(/^"|"$/g, ''));
           entry = '';
         } else {
@@ -174,55 +183,118 @@ export const PatientList: React.FC = () => {
       return cols;
     };
 
-    // Header column detection
-    const headerCols = parseRowCols(rawRows[0]).map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
+    const firstRowCols = parseRowCols(rawRows[0]);
+    const firstRowJoined = firstRowCols.join(' ').toLowerCase();
 
-    let nameIdx = headerCols.findIndex(h => h.includes('name') || h.includes('patient'));
-    let ageIdx = headerCols.findIndex(h => h.includes('age') || h.includes('dob') || h.includes('year'));
-    let genderIdx = headerCols.findIndex(h => h.includes('gender') || h.includes('sex'));
-    let phoneIdx = headerCols.findIndex(h => h.includes('phone') || h.includes('mobile') || h.includes('contact') || h.includes('number'));
-    let addressIdx = headerCols.findIndex(h => h.includes('address') || h.includes('city') || h.includes('location'));
-    let historyIdx = headerCols.findIndex(h => h.includes('history') || h.includes('medical') || h.includes('notes') || h.includes('diagnosis'));
-    let allergyIdx = headerCols.findIndex(h => h.includes('allergy') || h.includes('allergies'));
-    let bloodIdx = headerCols.findIndex(h => h.includes('blood') || h.includes('group'));
+    // Check if row 0 is a header line
+    const isHeaderRow = firstRowJoined.includes('name') || 
+                        firstRowJoined.includes('patient') || 
+                        firstRowJoined.includes('gender') || 
+                        firstRowJoined.includes('phone') || 
+                        firstRowJoined.includes('age');
 
-    if (nameIdx < 0) nameIdx = 0;
-    if (ageIdx < 0) ageIdx = 1;
-    if (genderIdx < 0) genderIdx = 2;
-    if (phoneIdx < 0) phoneIdx = 3;
-    if (addressIdx < 0) addressIdx = 4;
-    if (historyIdx < 0) historyIdx = 5;
-    if (allergyIdx < 0) allergyIdx = 6;
-    if (bloodIdx < 0) bloodIdx = 7;
+    let startIndex = isHeaderRow ? 1 : 0;
+
+    let nameIdx = -1;
+    let ageIdx = -1;
+    let genderIdx = -1;
+    let phoneIdx = -1;
+    let addressIdx = -1;
+    let historyIdx = -1;
+    let allergyIdx = -1;
+    let bloodIdx = -1;
+
+    if (isHeaderRow) {
+      const headerCols = firstRowCols.map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
+      nameIdx = headerCols.findIndex(h => h.includes('name') || h.includes('patient'));
+      ageIdx = headerCols.findIndex(h => h.includes('age') || h.includes('dob') || h.includes('year'));
+      genderIdx = headerCols.findIndex(h => h.includes('gender') || h.includes('sex'));
+      phoneIdx = headerCols.findIndex(h => h.includes('phone') || h.includes('mobile') || h.includes('contact') || h.includes('number'));
+      addressIdx = headerCols.findIndex(h => h.includes('address') || h.includes('city') || h.includes('location'));
+      historyIdx = headerCols.findIndex(h => h.includes('history') || h.includes('medical') || h.includes('notes') || h.includes('diagnosis'));
+      allergyIdx = headerCols.findIndex(h => h.includes('allergy') || h.includes('allergies'));
+      bloodIdx = headerCols.findIndex(h => h.includes('blood') || h.includes('group'));
+    }
 
     const parsedPatients: Partial<Patient>[] = [];
 
-    for (let i = 1; i < rawRows.length; i++) {
+    for (let i = startIndex; i < rawRows.length; i++) {
       const cols = parseRowCols(rawRows[i]);
       if (cols.length === 0) continue;
 
-      const rawName = cols[nameIdx] || '';
-      if (!rawName.trim()) continue;
+      let name = nameIdx >= 0 ? cols[nameIdx] : '';
+      let age = ageIdx >= 0 ? parseInt(cols[ageIdx]) : NaN;
+      let genderStr = genderIdx >= 0 ? cols[genderIdx] : '';
+      let phone = phoneIdx >= 0 ? cols[phoneIdx] : '';
+      let address = addressIdx >= 0 ? cols[addressIdx] : '';
+      let medicalHistory = historyIdx >= 0 ? cols[historyIdx] : '';
+      let allergies = allergyIdx >= 0 ? cols[allergyIdx] : '';
+      let bloodGroup = bloodIdx >= 0 ? cols[bloodIdx] : 'O+';
 
-      const parsedAge = parseInt(cols[ageIdx]) || 30;
-      const rawGender = (cols[genderIdx] || 'Male').toLowerCase();
+      // Smart Field Inference if headers were not matched or index was missing
+      if (!name) {
+        // Find field that looks like a full name (2+ words or non-numeric string, excluding IDs/dates)
+        const nameCandidate = cols.find(c => {
+          const val = c.trim();
+          return val.length > 2 && 
+                 !/^\d+$/.test(val) && 
+                 !/^P-\d+$/i.test(val) && 
+                 !/^(male|female|other)$/i.test(val) &&
+                 !/\d{4}-\d{2}-\d{2}/.test(val);
+        });
+        if (nameCandidate) name = nameCandidate;
+      }
+
+      if (isNaN(age)) {
+        const ageCandidate = cols.find(c => /^\d{1,3}$/.test(c.trim()) && parseInt(c) > 0 && parseInt(c) < 120);
+        if (ageCandidate) age = parseInt(ageCandidate);
+        else age = 30;
+      }
+
+      if (!genderStr) {
+        const genderCandidate = cols.find(c => /^(male|female|other|m|f|o)$/i.test(c.trim()));
+        if (genderCandidate) genderStr = genderCandidate;
+        else genderStr = 'Male';
+      }
+
+      if (!phone) {
+        const phoneCandidate = cols.find(c => /^\+?\d{8,15}$/.test(c.trim().replace(/[- ]/g, '')));
+        if (phoneCandidate) phone = phoneCandidate;
+      }
+
+      if (!address) {
+        const addrCandidate = cols.find(c => c !== name && c !== medicalHistory && (c.includes('Road') || c.includes('Street') || c.includes('Place') || c.includes('New Delhi') || c.includes('Kolkata') || c.includes('Ahmedabad') || c.includes('Bengaluru') || c.includes('Jaipur') || c.includes('Chennai')));
+        if (addrCandidate) address = addrCandidate;
+      }
+
+      if (!medicalHistory) {
+        const histCandidate = cols.find(c => c !== name && c !== address && (c.includes('Diabetes') || c.includes('GERD') || c.includes('Asthma') || c.includes('Migraine') || c.includes('Hypertension') || c.includes('Hypothyroidism') || c.includes('Osteoarthritis')));
+        if (histCandidate) medicalHistory = histCandidate;
+      }
+
+      if (!name || name.startsWith('P-') || /^\d+$/.test(name)) {
+        // Fallback to first non-empty text field if name not resolved
+        const fallbackName = cols.find(c => c.length > 2 && !/^\d+$/.test(c) && !/^P-/i.test(c) && !/\d{4}/.test(c));
+        name = fallbackName || `Patient ${i + 1}`;
+      }
 
       let genderVal = Gender.MALE;
-      if (rawGender.includes('fem') || rawGender === 'f') {
+      const lowerG = genderStr.toLowerCase();
+      if (lowerG.includes('fem') || lowerG === 'f') {
         genderVal = Gender.FEMALE;
-      } else if (rawGender.includes('oth') || rawGender === 'o') {
+      } else if (lowerG.includes('oth') || lowerG === 'o') {
         genderVal = Gender.OTHER;
       }
 
       parsedPatients.push({
-        name: rawName.trim(),
-        age: parsedAge,
+        name: name.trim(),
+        age,
         gender: genderVal,
-        phone: cols[phoneIdx] || '',
-        address: cols[addressIdx] || '',
-        medicalHistory: cols[historyIdx] || '',
-        allergies: cols[allergyIdx] || '',
-        bloodGroup: cols[bloodIdx] || 'O+'
+        phone: phone.trim(),
+        address: address.trim(),
+        medicalHistory: medicalHistory.trim(),
+        allergies: allergies.trim(),
+        bloodGroup: bloodGroup.trim() || 'O+'
       });
     }
 
