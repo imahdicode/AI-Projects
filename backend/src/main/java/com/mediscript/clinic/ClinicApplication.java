@@ -45,27 +45,28 @@ public class ClinicApplication {
                 branchRepository.save(new ClinicBranch("branch-3", "Aarogya Health Center - Indiranagar", "BLR-03", "12 Indiranagar 100ft Road, Bengaluru", "+91 97654 32109", 1, "ACTIVE"));
             }
 
-            // Seed Users (Super Admin + Doctors) with ACTIVE status
-            if (userRepository.count() == 0) {
+            // Ensure Super Admin 'mahdi' exists in database
+            if (userRepository.findByUsernameIgnoreCase("mahdi").isEmpty()) {
                 User admin = new User("1", "mahdi", "admin123", "Mahdi (Super Admin)", "System Administrator & Owner", "ADMIN-001", "+91 99000 00000", "ADMIN");
                 admin.setStatus("ACTIVE");
                 admin.setAssignedBranchId("branch-1");
                 userRepository.save(admin);
+            }
 
-                User doc1 = new User("doc-1", "dr.smith", "password123", "Dr. Alex Smith", "General Physician", "MD-987654", "(555) 123-4567", "DOCTOR");
-                doc1.setStatus("ACTIVE");
-                doc1.setAssignedBranchId("branch-1");
-                userRepository.save(doc1);
+            // Ensure Doctor 'farid' exists in database
+            if (userRepository.findByUsernameIgnoreCase("farid").isEmpty()) {
+                User docFarid = new User("2", "farid", "password123", "Dr. Farid Ansari", "General Physician", "MCI-2026-4469", "+91 98765 11111", "DOCTOR");
+                docFarid.setStatus("ACTIVE");
+                docFarid.setAssignedBranchId("branch-1");
+                userRepository.save(docFarid);
+            }
 
-                User doc2 = new User("doc-2", "dr.johnson", "password123", "Dr. Sarah Johnson", "Consultant Pediatrician", "MD-881245", "(555) 234-5678", "DOCTOR");
-                doc2.setStatus("ACTIVE");
-                doc2.setAssignedBranchId("branch-2");
-                userRepository.save(doc2);
-
-                User doc3 = new User("doc-3", "dr.patel", "password123", "Dr. Rajesh Patel", "General Surgeon", "MD-772390", "(555) 345-6789", "DOCTOR");
-                doc3.setStatus("ACTIVE");
-                doc3.setAssignedBranchId("branch-3");
-                userRepository.save(doc3);
+            // Ensure Doctor 'shoeb' exists in database
+            if (userRepository.findByUsernameIgnoreCase("shoeb").isEmpty()) {
+                User docShoeb = new User("3", "shoeb", "password123", "Dr. Shoeb", "Consultant Physician", "MCI-2026-5865", "+91 98765 22222", "DOCTOR");
+                docShoeb.setStatus("ACTIVE");
+                docShoeb.setAssignedBranchId("branch-2");
+                userRepository.save(docShoeb);
             }
         };
     }

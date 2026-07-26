@@ -53,6 +53,11 @@ export const Login: React.FC = () => {
 
     try {
       const user = await authService.login(username, password);
+      if (user.role === 'ADMIN') {
+        setError('Super Admin account detected. Please click the "Admin" tab to sign in.');
+        setLoading(false);
+        return;
+      }
       sessionService.setUser(user);
 
       // Save selected clinic branch setting

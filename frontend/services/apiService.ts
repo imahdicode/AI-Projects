@@ -68,10 +68,15 @@ const LOCAL_DOCTORS_KEY = 'mediscript_doctors';
 const getLocalDoctors = (): User[] => {
   try {
     const raw = localStorage.getItem(LOCAL_DOCTORS_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed: User[] = JSON.parse(raw);
+      if (parsed.length > 0) return parsed;
+    }
   } catch (e) {}
   return [
-    { id: 'admin-mahdi', username: 'mahdi', name: 'Mahdi (Super Admin)', specialization: 'System Administrator & Owner', licenseNumber: 'ADMIN-001', role: 'ADMIN' }
+    { id: '1', username: 'mahdi', name: 'Mahdi (Super Admin)', specialization: 'System Administrator & Owner', licenseNumber: 'ADMIN-001', role: 'ADMIN', status: 'ACTIVE' },
+    { id: '2', username: 'farid', name: 'Dr. Farid Ansari', specialization: 'General Physician', licenseNumber: 'MCI-2026-4469', role: 'DOCTOR', status: 'ACTIVE' },
+    { id: '3', username: 'shoeb', name: 'Dr. Shoeb', specialization: 'Consultant Physician', licenseNumber: 'MCI-2026-5865', role: 'DOCTOR', status: 'ACTIVE' }
   ];
 };
 
