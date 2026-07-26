@@ -27,6 +27,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         String authHeader = request.getHeader("Authorization");
         String doctorId = null;
         String role = null;
@@ -50,8 +55,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                     doctorId,
                     null,
-                    Collections.singletonList(new SimpleGrantedAuthority(authority))
-            );
+                    Collections.singletonList(new SimpleGrantedAuthority(authority)));
             SecurityContextHolder.getContext().setAuthentication(authToken);
         }
 
