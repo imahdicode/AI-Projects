@@ -325,23 +325,8 @@ export const patientService = {
         headers: getAuthHeaders(),
       });
       if (Array.isArray(apiPatients)) {
-        let fullLocal: Patient[] = [];
-        try {
-          const raw = localStorage.getItem(LOCAL_PATIENTS_KEY);
-          if (raw) fullLocal = JSON.parse(raw);
-        } catch (e) {}
-
-        const updatedFull = [...fullLocal];
-        apiPatients.forEach(ap => {
-          const idx = updatedFull.findIndex(lp => lp.id === ap.id);
-          if (idx >= 0) {
-            updatedFull[idx] = ap;
-          } else {
-            updatedFull.unshift(ap);
-          }
-        });
-        localStorage.setItem(LOCAL_PATIENTS_KEY, JSON.stringify(updatedFull));
-        return getLocalPatients();
+        localStorage.setItem(LOCAL_PATIENTS_KEY, JSON.stringify(apiPatients));
+        return apiPatients;
       }
       return getLocalPatients();
     } catch (e) {
