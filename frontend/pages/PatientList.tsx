@@ -86,7 +86,8 @@ export const PatientList: React.FC = () => {
 
     try {
       const newPatient = await patientService.create(patientPayload);
-      setPatients(prev => [newPatient, ...prev]);
+      setPatients(prev => [newPatient, ...prev.filter(p => p.id !== newPatient.id)]);
+      await loadPatients();
     } catch (error) {
       console.warn('Backend API unreachable or error, adding patient to local session directory:', error);
       const fallbackPatient: Patient = {
@@ -101,7 +102,7 @@ export const PatientList: React.FC = () => {
         bloodGroup: patientPayload.bloodGroup || 'O+',
         createdAt: new Date().toISOString()
       };
-      setPatients(prev => [fallbackPatient, ...prev]);
+      setPatients(prev => [fallbackPatient, ...prev.filter(p => p.id !== fallbackPatient.id)]);
     }
 
     setShowModal(false);
@@ -361,11 +362,17 @@ export const PatientList: React.FC = () => {
       }
     }
 
-    await loadPatients();
+    setPatients(prev => {
+      const mergedMap = new Map<string, Patient>();
+      createdList.forEach(p => mergedMap.set(p.id, p));
+      prev.forEach(p => mergedMap.set(p.id, p));
+      return Array.from(mergedMap.values());
+    });
     setImporting(false);
     setShowImportModal(false);
     setImportPreview([]);
     alert(`Successfully imported ${createdList.length} patient records!`);
+    await loadPatients();
   };
 
   const handleExportCSV = () => {
