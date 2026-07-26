@@ -103,5 +103,4 @@ public class PatientController {
     ) {
         return patientService.createVisit(id, visit, doctorId, role);
     }
-    }
 }
