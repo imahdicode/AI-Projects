@@ -294,16 +294,23 @@ export const patientService = {
         headers: getAuthHeaders(),
       });
       if (Array.isArray(apiPatients)) {
-        // Merge backend patients with doctor-scoped local patients so imported data is preserved
-        const localPatients = getLocalPatients();
-        const combined = [...apiPatients];
-        localPatients.forEach(lp => {
-          if (!combined.some(ap => ap.id === lp.id)) {
-            combined.unshift(lp);
+        let fullLocal: Patient[] = [];
+        try {
+          const raw = localStorage.getItem(LOCAL_PATIENTS_KEY);
+          if (raw) fullLocal = JSON.parse(raw);
+        } catch (e) {}
+
+        const updatedFull = [...fullLocal];
+        apiPatients.forEach(ap => {
+          const idx = updatedFull.findIndex(lp => lp.id === ap.id);
+          if (idx >= 0) {
+            updatedFull[idx] = ap;
+          } else {
+            updatedFull.unshift(ap);
           }
         });
-        localStorage.setItem(LOCAL_PATIENTS_KEY, JSON.stringify(combined));
-        return combined;
+        localStorage.setItem(LOCAL_PATIENTS_KEY, JSON.stringify(updatedFull));
+        return getLocalPatients();
       }
       return getLocalPatients();
     } catch (e) {
