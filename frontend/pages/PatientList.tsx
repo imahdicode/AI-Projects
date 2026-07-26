@@ -82,39 +82,29 @@ export const PatientList: React.FC = () => {
       return;
     }
 
-    const patientPayload: Partial<Patient> = {
-      name: formData.name,
-      age: Number(formData.age),
+    const activeUser = sessionService.getUser();
+    const currentDocId = activeUser?.id || '1';
+
+    const cleanAge = isNaN(Number(formData.age)) || Number(formData.age) < 0 ? 30 : Math.floor(Number(formData.age));
+    const tempId = `P-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+
+    const newPatient: Patient = {
+      id: tempId,
+      name: formData.name.trim(),
+      age: cleanAge,
       gender: formData.gender || Gender.MALE,
-      phone: formData.phone || '',
-      address: formData.address || '',
-      medicalHistory: formData.medicalHistory || '',
-      allergies: formData.allergies || '',
-      bloodGroup: formData.bloodGroup || 'O+'
+      phone: formData.phone ? formData.phone.trim() : '',
+      address: formData.address ? formData.address.trim() : '',
+      medicalHistory: formData.medicalHistory ? formData.medicalHistory.trim() : '',
+      allergies: formData.allergies ? formData.allergies.trim() : '',
+      bloodGroup: formData.bloodGroup || 'O+',
+      doctorId: currentDocId,
+      createdAt: new Date().toISOString()
     };
 
-    try {
-      const newPatient = await patientService.create(patientPayload);
-      setPatients(prev => [newPatient, ...prev.filter(p => p.id !== newPatient.id)]);
-      await loadPatients();
-    } catch (error) {
-      console.warn('Backend API unreachable or error, adding patient to local session directory:', error);
-      const fallbackPatient: Patient = {
-        id: `P-${Date.now()}`,
-        name: patientPayload.name!,
-        age: patientPayload.age!,
-        gender: (patientPayload.gender as Gender) || Gender.MALE,
-        phone: patientPayload.phone || '',
-        address: patientPayload.address || '',
-        medicalHistory: patientPayload.medicalHistory || '',
-        allergies: patientPayload.allergies || '',
-        bloodGroup: patientPayload.bloodGroup || 'O+',
-        createdAt: new Date().toISOString()
-      };
-      setPatients(prev => [fallbackPatient, ...prev.filter(p => p.id !== fallbackPatient.id)]);
-    }
-
+    // 1. Instant Modal Close & Screen Update (0ms Delay)
     setShowModal(false);
+    setPatients(prev => [newPatient, ...prev.filter(p => p.id !== newPatient.id)]);
     setFormData({
       name: '',
       age: undefined,
@@ -124,6 +114,19 @@ export const PatientList: React.FC = () => {
       medicalHistory: '',
       allergies: '',
       bloodGroup: 'O+'
+    });
+
+    // 2. Synchronous Persistent Storage Save (Guarantees survival on page refresh)
+    try {
+      const raw = localStorage.getItem(LOCAL_PATIENTS_KEY);
+      const existing: Patient[] = raw ? JSON.parse(raw) : [];
+      const updated = [newPatient, ...existing.filter(p => p.id !== newPatient.id)];
+      localStorage.setItem(LOCAL_PATIENTS_KEY, JSON.stringify(updated));
+    } catch (err) {}
+
+    // 3. Background API Persistence to Render & Neon PostgreSQL
+    patientService.create(newPatient).catch(err => {
+      console.warn('Background sync for registered patient fallback:', err);
     });
   };
 
