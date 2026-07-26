@@ -1,21 +1,6 @@
-import { GoogleGenAI } from "@google/genai";
+import { fetchAPI } from './apiService';
 
-const getApiKey = (): string => {
-  return (
-    localStorage.getItem('mediscript_gemini_api_key') ||
-    import.meta.env.VITE_GEMINI_API_KEY ||
-    import.meta.env.GEMINI_API_KEY ||
-    ''
-  );
-};
-
-const getClient = () => {
-  const apiKey = getApiKey();
-  if (!apiKey) return null;
-  return new GoogleGenAI({ apiKey });
-};
-
-// Comprehensive Medical Knowledge Rule Engine
+// Comprehensive Medical Knowledge Rule Engine Fallback
 const getFallbackSymptomAnalysis = (symptoms: string, age: number, gender: string) => {
   const s = symptoms.toLowerCase();
 
@@ -98,85 +83,32 @@ const getFallbackSymptomAnalysis = (symptoms: string, age: number, gender: strin
         'Complete Blood Count (CBC)',
         'Chest X-Ray PA View (if fever > 3 days)'
       ],
-      advice: `Patient (${age}y, ${gender}) presents with febrile respiratory symptoms. Recommend warm fluid intake, steam inhalation, and antipyretics.`
+      advice: 'Advise adequate oral hydration, steam inhalation, rest, body temperature monitoring, and double-masking.'
     };
   }
 
-  // 4. Cardiac / Chest Pain
-  if (s.includes('chest pain') || s.includes('breathless') || s.includes('palpitation') || s.includes('angina')) {
+  // 4. Gastroenterology
+  if (s.includes('acidity') || s.includes('gas') || s.includes('stomach') || s.includes('vomiting') || s.includes('nausea') || s.includes('gerd')) {
     return {
       possibleConditions: [
-        'Ischemic Heart Disease / Angina Pectoris',
         'Gastroesophageal Reflux Disease (GERD)',
-        'Costochondritis / Musculoskeletal Wall Pain'
+        'Acute Dyspepsia / Non-Ulcer Gastritis',
+        'Acute Gastroenteritis'
       ],
       recommendedChecks: [
-        '12-Lead Electrocardiogram (ECG)',
-        'Serum Troponin-I / CK-MB',
-        'Blood Pressure & Echocardiogram'
+        'Abdominal Palpation & Bowel Sounds',
+        'Serum Electrolytes & LFT',
+        'USG Abdomen (if recurrent right upper quadrant pain)'
       ],
-      advice: 'CRITICAL EVALUATION: Perform immediate 12-lead ECG. Exclude acute coronary syndrome before symptomatic treatment.'
+      advice: 'Advise small frequent bland meals, avoiding spicy & fatty foods, avoiding lying down immediately after meals, and elevating head of bed.'
     };
   }
 
-  // 5. Gastrointestinal / Stomach
-  if (s.includes('stomach') || s.includes('vomit') || s.includes('diarrhea') || s.includes('acidity') || s.includes('gas') || s.includes('abdominal')) {
-    return {
-      possibleConditions: [
-        'Acid Peptic Disease / GERD / Gastritis',
-        'Acute Gastroenteritis',
-        'Functional Dyspepsia'
-      ],
-      recommendedChecks: [
-        'Abdominal Palpation & Rebound Exam',
-        'Ultrasound Abdomen & Pelvis',
-        'Serum Electrolytes & Stool Routine'
-      ],
-      advice: 'Encourage Oral Rehydration Solution (ORS), bland non-spicy diet. Avoid alcohol, caffeine, and NSAIDs.'
-    };
-  }
-
-  // 6. Neurological / Headache
-  if (s.includes('headache') || s.includes('dizzy') || s.includes('giddiness') || s.includes('migraine')) {
-    return {
-      possibleConditions: [
-        'Tension-Type Headache',
-        'Migraine without Aura',
-        'Benign Paroxysmal Positional Vertigo (BPPV)'
-      ],
-      recommendedChecks: [
-        'Blood Pressure Measurement',
-        'Neurological Exam & Cranial Nerves',
-        'Refraction & Fundoscopy'
-      ],
-      advice: 'Evaluate BP and hydration status. Advise adequate sleep, dark quiet rest during attacks, and stress reduction.'
-    };
-  }
-
-  // 7. Urinary / Renal
-  if (s.includes('urine') || s.includes('burning') || s.includes('kidney') || s.includes('flank') || s.includes('uti')) {
-    return {
-      possibleConditions: [
-        'Acute Urinary Tract Infection (UTI)',
-        'Renal Calculi / Nephrolithiasis',
-        'Acute Cystitis'
-      ],
-      recommendedChecks: [
-        'Urine Routine & Microscopy',
-        'Ultrasound KUB (Kidney, Ureter, Bladder)',
-        'Renal Function Test (KFT)'
-      ],
-      advice: 'Advise high fluid intake (> 3 Liters water/day), urinary alkalinizers, and complete antibiotic compliance.'
-    };
-  }
-
-  // General Fallback
-  const cleanSymptomName = symptoms.trim().charAt(0).toUpperCase() + symptoms.trim().slice(1);
   return {
     possibleConditions: [
-      `${cleanSymptomName} - Differential Clinical Assessment`,
-      'Non-Specific Symptom Presentation',
-      'Viral Prodrome / General Fatigue'
+      'Acute Musculoskeletal Strain',
+      'Viral Febrile Prodrome / General Fatigue',
+      'Non-Specific Functional Symptomatology'
     ],
     recommendedChecks: [
       'Vital Signs (BP, Temp, Pulse, SpO2)',
@@ -187,60 +119,35 @@ const getFallbackSymptomAnalysis = (symptoms: string, age: number, gender: strin
 };
 
 export const geminiService = {
-  analyzeSymptoms: async (symptoms: string, age: number, gender: string, history: string) => {
-    const client = getClient();
-
-    if (client) {
-      try {
-        const response = await client.models.generateContent({
-          model: "gemini-2.5-flash",
-          contents: `Act as an expert clinical assistant. A patient (${age} years old, ${gender}) presents with: "${symptoms}". 
-          Medical History: "${history}".
-          Provide a JSON response with the following fields:
-          - "possibleConditions": array of strings (top 3 potential diagnoses)
-          - "recommendedChecks": array of strings (vitals or labs to check)
-          - "advice": string (brief clinical advice for the doctor)
-          
-          Keep it concise and professional. Do not provide definitive medical advice, only suggestions for the doctor.`,
-          config: {
-            responseMimeType: "application/json"
-          }
-        });
-        return JSON.parse(response.text);
-      } catch (error) {
-        console.warn("Gemini Live API call failed, switching to Built-in Medical Rule Engine:", error);
+  analyzeSymptoms: async (symptoms: string, age: number, gender: string, history?: string) => {
+    try {
+      const data = await fetchAPI<any>('/api/ai/analyze', {
+        method: 'POST',
+        body: JSON.stringify({ symptoms, age, gender })
+      });
+      if (data && data.possibleConditions) {
+        return data;
       }
+    } catch (error) {
+      console.warn("Backend AI Gateway unreachable, switching to Built-in Rule Engine:", error);
     }
 
     return getFallbackSymptomAnalysis(symptoms, age, gender);
   },
 
   suggestMedicines: async (diagnosis: string) => {
-    const client = getClient();
-
-    if (client) {
-      try {
-        const response = await client.models.generateContent({
-          model: "gemini-2.5-flash",
-          contents: `Suggest 3 common medicines for the diagnosis: "${diagnosis}".
-          Return a JSON array where each object has:
-          - "medicine": string (generic name)
-          - "dosage": string (typical adult dosage)
-          - "frequency": string (e.g. Twice daily)
-          - "instructions": string (e.g. After food)
-          
-          Disclaimer: This is for reference only.`,
-          config: {
-            responseMimeType: "application/json"
-          }
-        });
-        return JSON.parse(response.text);
-      } catch (error) {
-        console.warn("Gemini Live API call failed, switching to Built-in Medicine Suggestions:", error);
+    try {
+      const data = await fetchAPI<any>('/api/ai/suggest-medicines', {
+        method: 'POST',
+        body: JSON.stringify({ diagnosis })
+      });
+      if (Array.isArray(data) && data.length > 0) {
+        return data;
       }
+    } catch (error) {
+      console.warn("Backend AI Gateway unreachable, switching to Built-in Medicine Suggestions:", error);
     }
 
-    // Comprehensive Fallback medicines based on diagnosis keywords
     const d = diagnosis.toLowerCase();
 
     if (d.includes('plantar') || d.includes('heel') || d.includes('foot') || d.includes('gout') || d.includes('arthritis')) {

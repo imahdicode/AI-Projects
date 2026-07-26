@@ -7,7 +7,7 @@ const memoryCache = new Map<string, { timestamp: number; data: any }>();
 const CACHE_TTL_MS = 3000; // 3-second ultra-fast cache
 
 // Generic fetch wrapper with error handling & fast caching
-async function fetchAPI<T>(
+export async function fetchAPI<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
