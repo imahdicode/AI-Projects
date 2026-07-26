@@ -11,7 +11,10 @@ import com.mediscript.clinic.model.User;
 @Repository
 public interface UserRepository extends JpaRepository<User, String> {
     Optional<User> findByUsername(String username);
+    Optional<User> findByUsernameIgnoreCase(String username);
     List<User> findByRole(String role);
     Optional<User> findByLicenseNumber(String licenseNumber);
+    Optional<User> findByLicenseNumberIgnoreCase(String licenseNumber);
     Optional<User> findByLicenseNumberAndStatus(String licenseNumber, String status);
+    Optional<User> findByLicenseNumberIgnoreCaseAndStatus(String licenseNumber, String status);
 }

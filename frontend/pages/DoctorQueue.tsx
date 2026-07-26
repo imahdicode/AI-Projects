@@ -50,7 +50,12 @@ export const DoctorQueue: React.FC = () => {
     const savedQueue = localStorage.getItem('mediscript_patient_queue');
     if (savedQueue) {
       try {
-        setQueue(JSON.parse(savedQueue));
+        const parsed: QueueItem[] = JSON.parse(savedQueue);
+        if (activeDoctor && activeDoctor.role !== 'ADMIN' && activeDoctor.username?.toLowerCase() !== 'mahdi') {
+          setQueue(parsed.filter(q => !q.doctorId || q.doctorId === activeDoctor.id));
+        } else {
+          setQueue(parsed);
+        }
       } catch (e) {
         setQueue([]);
       }

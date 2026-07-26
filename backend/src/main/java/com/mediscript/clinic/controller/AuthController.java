@@ -26,32 +26,36 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
         if (request.getUsername() == null || request.getUsername().trim().isEmpty()) {
-            return ResponseEntity.badRequest().body("Username is required.");
+            return ResponseEntity.badRequest().body("Username or license number is required.");
         }
 
-        User user = userRepository.findByUsername(request.getUsername()).orElse(null);
+        String inputKey = request.getUsername().trim();
 
-        // Also allow login by license number (in case doctor forgets their username)
+        // 1. Search by username (case-insensitive)
+        User user = userRepository.findByUsernameIgnoreCase(inputKey).orElse(null);
+
+        // 2. Fallback: Search by license number (case-insensitive)
         if (user == null) {
-            user = userRepository.findByLicenseNumber(request.getUsername()).orElse(null);
+            user = userRepository.findByLicenseNumberIgnoreCase(inputKey).orElse(null);
         }
 
         if (user == null) {
-            return ResponseEntity.status(401).body("No account found with that username.");
+            return ResponseEntity.status(401).body("No account found matching '" + inputKey + "'.");
         }
 
         // Reject PENDING accounts — they must activate first
-        if ("PENDING".equals(user.getStatus())) {
+        if ("PENDING".equalsIgnoreCase(user.getStatus())) {
             return ResponseEntity.status(403).body(
-                "Account not yet activated. Please use 'First Login' to set your username and password."
+                "Account not yet activated. Please use 'First Login' tab to set your username and password."
             );
         }
 
-        // Password check (plain text comparison — fine for internal clinic system)
-        if (user.getPassword() != null && !user.getPassword().isEmpty()) {
-            if (!user.getPassword().equals(request.getPassword())) {
-                return ResponseEntity.status(401).body("Incorrect password.");
-            }
+        // Password check (plain text comparison for clinic internal use)
+        String expectedPassword = user.getPassword() != null ? user.getPassword() : "";
+        String providedPassword = request.getPassword() != null ? request.getPassword() : "";
+
+        if (!expectedPassword.equals(providedPassword)) {
+            return ResponseEntity.status(401).body("Incorrect password.");
         }
 
         return ResponseEntity.ok(user);
@@ -66,24 +70,30 @@ public class AuthController {
     // ── REGISTER DOCTOR (admin only — creates PENDING account) ─────────────
     @PostMapping("/register")
     public ResponseEntity<?> registerDoctor(@RequestBody RegisterRequest req) {
+        if (req.getName() == null || req.getName().trim().isEmpty()) {
+            return ResponseEntity.badRequest().body("Doctor name is required.");
+        }
+        if (req.getLicenseNumber() == null || req.getLicenseNumber().trim().isEmpty()) {
+            return ResponseEntity.badRequest().body("License number is required.");
+        }
+
+        String cleanLicense = req.getLicenseNumber().trim();
+
         // Validate license number is unique
-        if (req.getLicenseNumber() != null && !req.getLicenseNumber().trim().isEmpty()) {
-            if (userRepository.findByLicenseNumber(req.getLicenseNumber().trim()).isPresent()) {
-                return ResponseEntity.badRequest().body("A doctor with this license number already exists.");
-            }
+        if (userRepository.findByLicenseNumberIgnoreCase(cleanLicense).isPresent()) {
+            return ResponseEntity.badRequest().body("A doctor with license number '" + cleanLicense + "' already exists.");
         }
 
         User doctor = new User();
-        long nextId = userRepository.count() + 1;
-        doctor.setId(String.valueOf(nextId));
-        doctor.setName(req.getName());
-        doctor.setSpecialization(req.getSpecialization() != null ? req.getSpecialization() : "General Physician");
-        doctor.setLicenseNumber(req.getLicenseNumber());
-        doctor.setPhone(req.getPhone());
+        long nextId = userRepository.count() + 101;
+        doctor.setId("doc-" + nextId);
+        doctor.setName(req.getName().trim());
+        doctor.setSpecialization(req.getSpecialization() != null && !req.getSpecialization().trim().isEmpty() ? req.getSpecialization().trim() : "General Physician");
+        doctor.setLicenseNumber(cleanLicense);
+        doctor.setPhone(req.getPhone() != null ? req.getPhone().trim() : "");
         doctor.setAssignedBranchId(req.getAssignedBranchId());
         doctor.setRole("DOCTOR");
         doctor.setStatus("PENDING"); // Must activate via /activate before they can log in
-        // Username and password are NOT set by admin — doctor sets them on first login
 
         return ResponseEntity.ok(userRepository.save(doctor));
     }
@@ -98,30 +108,31 @@ public class AuthController {
             return ResponseEntity.badRequest().body("Username is required.");
         }
         if (req.getPassword() == null || req.getPassword().trim().length() < 6) {
-            return ResponseEntity.badRequest().body("Password must be at least 6 characters.");
+            return ResponseEntity.badRequest().body("Password must be at least 6 characters long.");
         }
 
+        String cleanLicense = req.getLicenseNumber().trim();
+        String cleanUsername = req.getUsername().trim().toLowerCase();
+
         // Find PENDING doctor by license number
-        User doctor = userRepository.findByLicenseNumberAndStatus(
-            req.getLicenseNumber().trim(), "PENDING"
-        ).orElse(null);
+        User doctor = userRepository.findByLicenseNumberIgnoreCaseAndStatus(cleanLicense, "PENDING").orElse(null);
 
         if (doctor == null) {
             return ResponseEntity.status(404).body(
-                "No pending account found for that license number. " +
-                "Either it was already activated or the license number is incorrect."
+                "No pending account found for license '" + cleanLicense + "'. " +
+                "It may have already been activated or the license number is invalid."
             );
         }
 
         // Check username is not already taken
-        if (userRepository.findByUsername(req.getUsername().trim()).isPresent()) {
+        if (userRepository.findByUsernameIgnoreCase(cleanUsername).isPresent()) {
             return ResponseEntity.badRequest().body(
-                "Username '" + req.getUsername() + "' is already taken. Please choose another."
+                "Username '" + cleanUsername + "' is already taken. Please choose another username."
             );
         }
 
         // Activate the account
-        doctor.setUsername(req.getUsername().trim().toLowerCase());
+        doctor.setUsername(cleanUsername);
         doctor.setPassword(req.getPassword());
         doctor.setStatus("ACTIVE");
 
@@ -138,13 +149,15 @@ public class AuthController {
     // ── DELETE DOCTOR BY USERNAME ──────────────────────────────────────────
     @DeleteMapping("/doctors/username/{username}")
     public ResponseEntity<?> deleteDoctorByUsername(@PathVariable String username) {
-        userRepository.findByUsername(username).ifPresent(userRepository::delete);
+        userRepository.findByUsernameIgnoreCase(username).ifPresent(userRepository::delete);
         return ResponseEntity.ok().build();
     }
 
-    private String capitalize(String str) {
-        if (str == null || str.isEmpty()) return "Doctor";
-        return "Dr. " + str.substring(0, 1).toUpperCase() + str.substring(1);
+    // ── DELETE DOCTOR BY LICENSE NUMBER ────────────────────────────────────
+    @DeleteMapping("/doctors/license/{licenseNumber}")
+    public ResponseEntity<?> deleteDoctorByLicense(@PathVariable String licenseNumber) {
+        userRepository.findByLicenseNumberIgnoreCase(licenseNumber).ifPresent(userRepository::delete);
+        return ResponseEntity.ok().build();
     }
 
     // ── REQUEST DTOs ───────────────────────────────────────────────────────

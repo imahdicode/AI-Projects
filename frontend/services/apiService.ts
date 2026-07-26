@@ -127,17 +127,29 @@ export const authService = {
     });
   },
 
-  deleteDoctor: async (username: string): Promise<void> => {
+  deleteDoctor: async (targetKey: string): Promise<void> => {
     // 1. Delete from persistent local storage
     const current = getLocalDoctors();
-    const filtered = current.filter(d => d.username.toLowerCase() !== username.toLowerCase());
+    const filtered = current.filter(d => 
+      (d.username && d.username.toLowerCase() !== targetKey.toLowerCase()) &&
+      d.id !== targetKey &&
+      d.licenseNumber !== targetKey
+    );
     saveLocalDoctors(filtered);
 
     // 2. Delete from PostgreSQL database via API
     try {
-      await fetchAPI(`/api/auth/doctors/username/${username}`, { method: 'DELETE' });
+      await fetchAPI(`/api/auth/doctors/${targetKey}`, { method: 'DELETE' });
     } catch (e) {
-      console.warn('Backend DELETE doctor fallback:', e);
+      try {
+        await fetchAPI(`/api/auth/doctors/username/${targetKey}`, { method: 'DELETE' });
+      } catch (e2) {
+        try {
+          await fetchAPI(`/api/auth/doctors/license/${targetKey}`, { method: 'DELETE' });
+        } catch (e3) {
+          console.warn('Backend DELETE doctor fallback:', e3);
+        }
+      }
     }
   }
 };
