@@ -341,13 +341,16 @@ export const PatientList: React.FC = () => {
     setImporting(true);
     const createdList: Patient[] = [];
     const baseTimestamp = Date.now();
+    const activeUser = sessionService.getUser();
+    const currentDocId = activeUser?.id || '1';
 
     for (let idx = 0; idx < importPreview.length; idx++) {
       const p = importPreview[idx];
       const uniqueId = `P-${baseTimestamp}-${idx}-${Math.random().toString(36).substring(2, 6)}`;
       const payload: Partial<Patient> = {
         ...p,
-        id: uniqueId
+        id: uniqueId,
+        doctorId: p.doctorId || currentDocId
       };
       try {
         const created = await patientService.create(payload);
@@ -357,12 +360,13 @@ export const PatientList: React.FC = () => {
           id: uniqueId,
           name: p.name || 'Patient',
           age: p.age || 30,
-          gender: p.gender || Gender.MALE,
+          gender: (p.gender as any) || Gender.MALE,
           phone: p.phone || '',
           address: p.address || '',
           medicalHistory: p.medicalHistory || '',
           allergies: p.allergies || '',
           bloodGroup: p.bloodGroup || 'O+',
+          doctorId: currentDocId,
           createdAt: new Date().toISOString()
         };
         createdList.push(fallback);
@@ -371,8 +375,8 @@ export const PatientList: React.FC = () => {
 
     setPatients(prev => {
       const mergedMap = new Map<string, Patient>();
-      createdList.forEach(p => mergedMap.set(p.id, p));
       prev.forEach(p => mergedMap.set(p.id, p));
+      createdList.forEach(p => mergedMap.set(p.id, p));
       return Array.from(mergedMap.values());
     });
     setImporting(false);
