@@ -77,15 +77,17 @@ export const PatientList: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.age) {
-      alert("Please provide Name and Age.");
+    if (!formData.name || !formData.name.trim()) {
+      alert("Please provide the Patient Name.");
       return;
     }
 
     const activeUser = sessionService.getUser();
     const currentDocId = activeUser?.id || '1';
 
-    const cleanAge = isNaN(Number(formData.age)) || Number(formData.age) < 0 ? 30 : Math.floor(Number(formData.age));
+    const cleanAge = (formData.age !== undefined && formData.age !== null && !isNaN(Number(formData.age)))
+      ? Math.max(0, Math.floor(Number(formData.age)))
+      : 30;
     const tempId = `P-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
 
     const newPatient: Patient = {
