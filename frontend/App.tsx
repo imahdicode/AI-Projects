@@ -22,9 +22,20 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+const PublicOnlyRoute = ({ children }: { children: React.ReactNode }) => {
+  const user = sessionService.getUser();
+  if (user) {
+    if (user.role === 'ADMIN' || user.username?.toLowerCase() === 'mahdi') {
+      return <Navigate to="/admin" replace />;
+    }
+    return <Navigate to="/dashboard" replace />;
+  }
+  return <>{children}</>;
+};
+
 const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   const user = sessionService.getUser();
-  if (!user || (user.role !== 'ADMIN' && user.username.toLowerCase() !== 'mahdi')) {
+  if (!user || (user.role !== 'ADMIN' && user.username?.toLowerCase() !== 'mahdi')) {
     return <Navigate to="/dashboard" replace />;
   }
   return <>{children}</>;
@@ -35,7 +46,11 @@ const App: React.FC = () => {
     <ErrorBoundary>
       <HashRouter>
         <Routes>
-          <Route path="/login" element={<Login />} />
+          <Route path="/login" element={
+            <PublicOnlyRoute>
+              <Login />
+            </PublicOnlyRoute>
+          } />
           
           <Route path="/" element={
             <ProtectedRoute>
@@ -57,6 +72,7 @@ const App: React.FC = () => {
             } />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </HashRouter>
     </ErrorBoundary>

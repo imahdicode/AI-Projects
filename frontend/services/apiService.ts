@@ -190,7 +190,13 @@ const LOCAL_VISITS_KEY = 'mediscript_local_visits';
 const getLocalPatients = (): Patient[] => {
   try {
     const raw = localStorage.getItem(LOCAL_PATIENTS_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const list: Patient[] = raw ? JSON.parse(raw) : [];
+    const activeUser = sessionService.getUser();
+    if (!activeUser) return [];
+    if (activeUser.role === 'ADMIN' || activeUser.username?.toLowerCase() === 'mahdi') {
+      return list;
+    }
+    return list.filter(p => p.doctorId === activeUser.id);
   } catch (e) {
     return [];
   }
@@ -198,7 +204,8 @@ const getLocalPatients = (): Patient[] => {
 
 const saveLocalPatient = (p: Patient) => {
   try {
-    const existing = getLocalPatients();
+    const raw = localStorage.getItem(LOCAL_PATIENTS_KEY);
+    const existing: Patient[] = raw ? JSON.parse(raw) : [];
     const updated = [p, ...existing.filter(item => item.id !== p.id)];
     localStorage.setItem(LOCAL_PATIENTS_KEY, JSON.stringify(updated));
   } catch (e) {}
@@ -207,7 +214,11 @@ const saveLocalPatient = (p: Patient) => {
 const getLocalVisits = (patientId?: string): Visit[] => {
   try {
     const raw = localStorage.getItem(LOCAL_VISITS_KEY);
-    const visits: Visit[] = raw ? JSON.parse(raw) : [];
+    let visits: Visit[] = raw ? JSON.parse(raw) : [];
+    const activeUser = sessionService.getUser();
+    if (activeUser && activeUser.role !== 'ADMIN' && activeUser.username?.toLowerCase() !== 'mahdi') {
+      visits = visits.filter(v => v.doctorId === activeUser.id);
+    }
     if (patientId) {
       return visits.filter(v => v.patientId === patientId);
     }
@@ -219,7 +230,8 @@ const getLocalVisits = (patientId?: string): Visit[] => {
 
 const saveLocalVisit = (visit: Visit) => {
   try {
-    const existing = getLocalVisits();
+    const raw = localStorage.getItem(LOCAL_VISITS_KEY);
+    const existing: Visit[] = raw ? JSON.parse(raw) : [];
     const updated = [visit, ...existing.filter(v => v.id !== visit.id)];
     localStorage.setItem(LOCAL_VISITS_KEY, JSON.stringify(updated));
   } catch (e) {}
@@ -447,12 +459,19 @@ const USER_KEY = 'mediscript_user';
 export const sessionService = {
   setUser: (user: User) => {
     localStorage.setItem(USER_KEY, JSON.stringify(user));
+    sessionStorage.setItem(USER_KEY, JSON.stringify(user));
   },
   getUser: (): User | null => {
-    const u = localStorage.getItem(USER_KEY);
-    return u ? JSON.parse(u) : null;
+    try {
+      const u = localStorage.getItem(USER_KEY) || sessionStorage.getItem(USER_KEY);
+      return u ? JSON.parse(u) : null;
+    } catch {
+      return null;
+    }
   },
   clearUser: () => {
     localStorage.removeItem(USER_KEY);
+    sessionStorage.removeItem(USER_KEY);
+    memoryCache.clear();
   },
 };

@@ -40,7 +40,7 @@ public class PatientController {
         @RequestHeader(value = "X-Doctor-Id", required = false) String doctorId,
         @RequestHeader(value = "X-Doctor-Role", required = false) String role
     ) {
-        if ("ADMIN".equals(role)) {
+        if ("ADMIN".equalsIgnoreCase(role)) {
             return patientRepository.findAll();
         }
         if (doctorId != null && !doctorId.isBlank()) {
@@ -60,7 +60,7 @@ public class PatientController {
             .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
 
         // Access check: doctors can only access their own patients
-        if (!"ADMIN".equals(role) && doctorId != null && !doctorId.equals(patient.getDoctorId())) {
+        if (!"ADMIN".equalsIgnoreCase(role) && doctorId != null && !doctorId.equals(patient.getDoctorId())) {
             throw new ResourceNotFoundException("Patient not found");
         }
         return patient;
@@ -100,7 +100,7 @@ public class PatientController {
             .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
 
         // Access check
-        if (!"ADMIN".equals(role) && doctorId != null && !doctorId.equals(existing.getDoctorId())) {
+        if (!"ADMIN".equalsIgnoreCase(role) && doctorId != null && !doctorId.equals(existing.getDoctorId())) {
             throw new ResourceNotFoundException("Patient not found");
         }
 
@@ -123,7 +123,7 @@ public class PatientController {
         Patient existing = patientRepository.findById(id).orElse(null);
         if (existing != null) {
             // Access check
-            if (!"ADMIN".equals(role) && doctorId != null && !doctorId.equals(existing.getDoctorId())) {
+            if (!"ADMIN".equalsIgnoreCase(role) && doctorId != null && !doctorId.equals(existing.getDoctorId())) {
                 throw new ResourceNotFoundException("Patient not found");
             }
             visitRepository.deleteByPatientId(id);
@@ -140,7 +140,7 @@ public class PatientController {
     ) {
         // Verify patient access first
         Patient patient = patientRepository.findById(id).orElse(null);
-        if (patient != null && !"ADMIN".equals(role) && doctorId != null && !doctorId.equals(patient.getDoctorId())) {
+        if (patient != null && !"ADMIN".equalsIgnoreCase(role) && doctorId != null && !doctorId.equals(patient.getDoctorId())) {
             return List.of();
         }
         return visitRepository.findByPatientIdOrderByDateDesc(id);

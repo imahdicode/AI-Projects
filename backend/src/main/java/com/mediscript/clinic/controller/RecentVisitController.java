@@ -25,7 +25,7 @@ public class RecentVisitController {
         @RequestHeader(value = "X-Doctor-Id", required = false) String doctorId,
         @RequestHeader(value = "X-Doctor-Role", required = false) String role
     ) {
-        if ("ADMIN".equals(role)) {
+        if ("ADMIN".equalsIgnoreCase(role)) {
             return visitRepository.findAllByOrderByDateDesc();
         }
         if (doctorId != null && !doctorId.isBlank()) {
