@@ -139,8 +139,10 @@ export const authService = {
       const dbUsers = await fetchAPI<User[]>('/api/auth/doctors');
       if (Array.isArray(dbUsers)) {
         const cleanDocs = dbUsers.filter(d => !['dr.smith', 'dr.johnson', 'dr.patel'].includes(d.username?.toLowerCase() || ''));
-        saveLocalDoctors(cleanDocs);
-        return cleanDocs;
+        if (cleanDocs.length > 0) {
+          saveLocalDoctors(cleanDocs);
+          return cleanDocs;
+        }
       }
     } catch (e) {}
 
