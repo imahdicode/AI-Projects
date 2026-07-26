@@ -16,6 +16,7 @@ mediscript---clinic-management-system/
 │   ├── services/      # API services
 │   └── ...
 ├── backend/           # Spring Boot backend
+│   ├── mvnw / mvnw.cmd# Embedded Maven Wrapper
 │   └── src/main/java/com/mediscript/clinic/
 └── README.md
 ```
@@ -29,54 +30,69 @@ mediscript---clinic-management-system/
 - **Clinic Branch Management**: Multi-branch tracking and configuration.
 - **Medicine Inventory & Templates**: Pre-configured prescription templates for rapid entry.
 
-## Prerequisites
+---
 
-- **Frontend:** Node.js (v20.19.0 or v22.12.0+)
-- **Backend:** JDK 21 (or JDK 17+) and Maven 3.9+
-- **Database:** PostgreSQL 18 (or local H2 in-memory)
+## 🚀 How to Run the Project
+
+You will need **two terminal windows**: one for the Backend (Spring Boot) and one for the Frontend (React).
+
+### Method 1: Quick Start with H2 In-Memory Database (No Database Installation Needed)
+
+This is the easiest way to run the project instantly without setting up PostgreSQL or Docker.
+
+#### Step 1: Start Backend (Terminal 1)
+Open PowerShell or Terminal in the project root:
+```powershell
+cd backend
+.\mvnw spring-boot:run -Dspring-boot.run.profiles=h2
+```
+*(On Linux/macOS, use `./mvnw spring-boot:run -Dspring-boot.run.profiles=h2`)*
+
+The backend server will start on **`http://localhost:8080`**.
+
+#### Step 2: Start Frontend (Terminal 2)
+Open a new PowerShell or Terminal window in the project root:
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Open your browser at **`http://localhost:5173`**.
 
 ---
 
-## Getting Started
+### Method 2: Running with PostgreSQL Database
 
-### 1. Backend Setup
+If you have PostgreSQL installed on your system:
 
-#### Running with PostgreSQL (Default)
-1. Start PostgreSQL server or container:
-   ```bash
-   docker-compose up -d
-   ```
-2. Configure credentials in `backend/src/main/resources/application.properties` (or set `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`).
-3. Run the Spring Boot application:
-   ```bash
-   cd backend
-   mvn spring-boot:run
-   ```
+#### Step 1: Ensure PostgreSQL Database Exists
+Ensure PostgreSQL is running and create the database `mediscript_db`:
+```sql
+CREATE DATABASE mediscript_db;
+```
+*(Optionally adjust username/password in `backend/src/main/resources/application.properties`)*
 
-#### Running with H2 In-Memory Database (No Setup Required)
-```bash
+#### Step 2: Start Backend (Terminal 1)
+```powershell
 cd backend
-mvn spring-boot:run -Dspring-boot.run.profiles=h2
+.\mvnw spring-boot:run
 ```
 
-The backend server listens on `http://localhost:8080` exposing REST APIs under `/api`.
+#### Step 3: Start Frontend (Terminal 2)
+```powershell
+cd frontend
+npm run dev
+```
 
-### 2. Frontend Setup
+---
 
-1. Navigate to the `frontend` directory:
-   ```bash
-   cd frontend
-   ```
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Start the development server:
-   ```bash
-   npm run dev
-   ```
+## Default Login Credentials
 
-The application will be accessible at `http://localhost:5173`.
+| Role | Username / License | Password | Notes |
+|---|---|---|---|
+| **Admin** | `mahdi` | `admin123` | System Administrator & Owner |
+| **Doctor** | Use Admin panel to register new doctors | Set via First Login tab | Doctors use License Number to activate account |
 
 ---
 
