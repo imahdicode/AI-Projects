@@ -340,14 +340,21 @@ export const PatientList: React.FC = () => {
     if (importPreview.length === 0) return;
     setImporting(true);
     const createdList: Patient[] = [];
+    const baseTimestamp = Date.now();
 
-    for (const p of importPreview) {
+    for (let idx = 0; idx < importPreview.length; idx++) {
+      const p = importPreview[idx];
+      const uniqueId = `P-${baseTimestamp}-${idx}-${Math.random().toString(36).substring(2, 6)}`;
+      const payload: Partial<Patient> = {
+        ...p,
+        id: uniqueId
+      };
       try {
-        const created = await patientService.create(p);
+        const created = await patientService.create(payload);
         createdList.push(created);
       } catch (err) {
         const fallback: Patient = {
-          id: `P-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          id: uniqueId,
           name: p.name || 'Patient',
           age: p.age || 30,
           gender: p.gender || Gender.MALE,
