@@ -177,22 +177,7 @@ const DEFAULT_SEED_PATIENTS: Patient[] = [];
 const getLocalPatients = (): Patient[] => {
   try {
     const raw = localStorage.getItem(LOCAL_PATIENTS_KEY);
-    let list: Patient[] = raw ? JSON.parse(raw) : [];
-    
-    // Merge DEFAULT_SEED_PATIENTS if list is empty or missing seeds
-    DEFAULT_SEED_PATIENTS.forEach(seed => {
-      if (!list.some(p => p.id === seed.id)) {
-        list.push(seed);
-      }
-    });
-    localStorage.setItem(LOCAL_PATIENTS_KEY, JSON.stringify(list));
-
-    const activeUser = sessionService.getUser();
-    if (!activeUser) return [];
-    if (activeUser.role === 'ADMIN' || activeUser.username?.toLowerCase() === 'mahdi') {
-      return list;
-    }
-    return list.filter(p => !p.doctorId || String(p.doctorId) === String(activeUser.id) || String(p.doctorId) === '1');
+    return raw ? JSON.parse(raw) : [];
   } catch (e) {
     return [];
   }
@@ -211,10 +196,6 @@ const getLocalVisits = (patientId?: string): Visit[] => {
   try {
     const raw = localStorage.getItem(LOCAL_VISITS_KEY);
     let visits: Visit[] = raw ? JSON.parse(raw) : [];
-    const activeUser = sessionService.getUser();
-    if (activeUser && activeUser.role !== 'ADMIN' && activeUser.username?.toLowerCase() !== 'mahdi') {
-      visits = visits.filter(v => v.doctorId === activeUser.id);
-    }
     if (patientId) {
       return visits.filter(v => v.patientId === patientId);
     }
@@ -241,7 +222,6 @@ export const patientService = {
         headers: getAuthHeaders(),
       });
       if (Array.isArray(apiPatients)) {
-        // Merge backend API patients with local storage records so unsynced/local entries are preserved
         const local = getLocalPatients();
         const mergedMap = new Map<string, Patient>();
         apiPatients.forEach(p => mergedMap.set(p.id, p));
@@ -252,13 +232,7 @@ export const patientService = {
         });
         const mergedList = Array.from(mergedMap.values());
         localStorage.setItem(LOCAL_PATIENTS_KEY, JSON.stringify(mergedList));
-
-        const activeUser = sessionService.getUser();
-        if (!activeUser) return mergedList;
-        if (activeUser.role === 'ADMIN' || activeUser.username?.toLowerCase() === 'mahdi') {
-          return mergedList;
-        }
-        return mergedList.filter(p => !p.doctorId || String(p.doctorId) === String(activeUser.id) || String(p.doctorId) === '1');
+        return mergedList;
       }
       return getLocalPatients();
     } catch (e) {
