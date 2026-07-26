@@ -50,7 +50,16 @@ export const PatientList: React.FC = () => {
     try {
       setLoading(true);
       const data = await patientService.list();
-      setPatients(data);
+      setPatients(prev => {
+        const mergedMap = new Map<string, Patient>();
+        data.forEach(p => mergedMap.set(p.id, p));
+        prev.forEach(p => {
+          if (!mergedMap.has(p.id)) {
+            mergedMap.set(p.id, p);
+          }
+        });
+        return Array.from(mergedMap.values());
+      });
     } catch (error) {
       console.error('Failed to load patient directory:', error);
     } finally {
