@@ -375,6 +375,16 @@ export const PatientList: React.FC = () => {
       };
     });
 
+    // Synchronous Persistent Local Storage Save — Guarantees survival on page refresh (F5)
+    try {
+      const raw = localStorage.getItem('mediscript_patients');
+      const existing: Patient[] = raw ? JSON.parse(raw) : [];
+      const mergedMap = new Map<string, Patient>();
+      preparedList.forEach(p => mergedMap.set(p.id, p));
+      existing.forEach(p => mergedMap.set(p.id, p));
+      localStorage.setItem('mediscript_patients', JSON.stringify(Array.from(mergedMap.values())));
+    } catch (e) {}
+
     // Instant UI Reactivity — Update Screen & Close Modal in 0 Milliseconds
     setPatients(prev => {
       const mergedMap = new Map<string, Patient>();
