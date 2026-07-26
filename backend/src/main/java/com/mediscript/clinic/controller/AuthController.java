@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.mediscript.clinic.dto.UserDto;
 import com.mediscript.clinic.model.User;
 import com.mediscript.clinic.service.AuthService;
 
@@ -29,7 +30,7 @@ public class AuthController {
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
         try {
             User user = authService.authenticate(request);
-            return ResponseEntity.ok(user);
+            return ResponseEntity.ok(UserDto.fromEntity(user));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(401).body(e.getMessage());
         } catch (IllegalStateException e) {
@@ -39,8 +40,10 @@ public class AuthController {
 
     // ── GET ALL DOCTORS (role = DOCTOR only, excludes admin) ───────────────
     @GetMapping("/doctors")
-    public List<User> getDoctors() {
-        return authService.getDoctors();
+    public List<UserDto> getDoctors() {
+        return authService.getDoctors().stream()
+                .map(UserDto::fromEntity)
+                .toList();
     }
 
     // ── REGISTER DOCTOR (admin only — creates PENDING account) ─────────────

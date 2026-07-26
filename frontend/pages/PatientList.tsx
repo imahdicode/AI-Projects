@@ -658,7 +658,7 @@ export const PatientList: React.FC = () => {
 
       {/* Bulk Excel/CSV Import Modal */}
       {showImportModal && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+        <div role="dialog" aria-modal="true" aria-labelledby="import-modal-title" className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-slate-200 space-y-4">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
               <div className="flex items-center gap-2.5">
@@ -666,7 +666,7 @@ export const PatientList: React.FC = () => {
                   <FileSpreadsheet size={20} />
                 </div>
                 <div>
-                  <h3 className="text-base font-extrabold text-slate-900">Bulk Import Patients (Excel / CSV)</h3>
+                  <h3 id="import-modal-title" className="text-base font-extrabold text-slate-900">Bulk Import Patients (Excel / CSV)</h3>
                   <p className="text-xs text-slate-500">Upload old clinic patient spreadsheets into MediScript</p>
                 </div>
               </div>
