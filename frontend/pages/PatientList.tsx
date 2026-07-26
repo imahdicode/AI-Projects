@@ -16,7 +16,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { Button } from '../components/Button';
-import { patientService } from '../services/apiService';
+import { patientService, LOCAL_PATIENTS_KEY } from '../services/apiService';
 import { Patient, Gender } from '../types';
 
 export const PatientList: React.FC = () => {
@@ -377,12 +377,12 @@ export const PatientList: React.FC = () => {
 
     // Synchronous Persistent Local Storage Save — Guarantees survival on page refresh (F5)
     try {
-      const raw = localStorage.getItem('mediscript_patients');
+      const raw = localStorage.getItem(LOCAL_PATIENTS_KEY);
       const existing: Patient[] = raw ? JSON.parse(raw) : [];
       const mergedMap = new Map<string, Patient>();
       preparedList.forEach(p => mergedMap.set(p.id, p));
       existing.forEach(p => mergedMap.set(p.id, p));
-      localStorage.setItem('mediscript_patients', JSON.stringify(Array.from(mergedMap.values())));
+      localStorage.setItem(LOCAL_PATIENTS_KEY, JSON.stringify(Array.from(mergedMap.values())));
     } catch (e) {}
 
     // Instant UI Reactivity — Update Screen & Close Modal in 0 Milliseconds

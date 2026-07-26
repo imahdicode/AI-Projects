@@ -169,7 +169,7 @@ export const clinicBranchService = {
   }
 };
 
-const LOCAL_PATIENTS_KEY = 'mediscript_local_patients';
+export const LOCAL_PATIENTS_KEY = 'mediscript_patients';
 const LOCAL_VISITS_KEY = 'mediscript_local_visits';
 
 const DEFAULT_SEED_PATIENTS: Patient[] = [];
