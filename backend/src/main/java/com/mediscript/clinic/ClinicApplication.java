@@ -73,12 +73,12 @@ public class ClinicApplication {
 
     private ClinicSettings defaultSettings() {
         ClinicSettings settings = new ClinicSettings();
-        settings.setName("City Care Clinic");
-        settings.setAddress("123 Health Blvd, Wellness City, ST 12345");
-        settings.setPhone("(555) 123-4567");
-        settings.setDoctorName("Dr. Alex Smith");
-        settings.setSpecialization("General Physician");
-        settings.setLicenseNumber("MD-987654");
+        settings.setName("MediScript Main Clinic");
+        settings.setAddress("123 MG Road, Connaught Place, New Delhi");
+        settings.setPhone("+91 98765 43210");
+        settings.setDoctorName("Mahdi (Super Admin)");
+        settings.setSpecialization("System Administrator & Owner");
+        settings.setLicenseNumber("ADMIN-001");
         settings.setFooterText("Get well soon! Please bring this prescription for your next visit.");
         return settings;
     }

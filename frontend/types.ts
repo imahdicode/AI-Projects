@@ -69,6 +69,7 @@ export interface Patient {
   medicalHistory: string;
   allergies?: string;
   bloodGroup?: string;
+  doctorId?: string;
   createdAt: string;
 }
 

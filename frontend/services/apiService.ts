@@ -64,9 +64,9 @@ function getAuthHeaders(): Record<string, string> {
 }
 
 const DEFAULT_SYSTEM_DOCTORS: User[] = [
-  { id: '1', username: 'mahdi', password: 'admin123', name: 'Mahdi (Super Admin)', specialization: 'System Administrator & Owner', licenseNumber: 'ADMIN-001', role: 'ADMIN', status: 'ACTIVE' },
-  { id: '2', username: 'farid', password: 'password123', name: 'Dr. Farid Ansari', specialization: 'General Physician', licenseNumber: 'MCI-2026-4469', role: 'DOCTOR', status: 'ACTIVE' },
-  { id: '3', username: 'shoeb', password: 'password123', name: 'Dr. Shoeb', specialization: 'Consultant Physician', licenseNumber: 'MCI-2026-5865', role: 'DOCTOR', status: 'ACTIVE' }
+  { id: '1', username: 'mahdi', name: 'Mahdi (Super Admin)', specialization: 'System Administrator & Owner', licenseNumber: 'ADMIN-001', role: 'ADMIN', status: 'ACTIVE' },
+  { id: '2', username: 'farid', name: 'Dr. Farid Ansari', specialization: 'General Physician', licenseNumber: 'MCI-2026-4469', role: 'DOCTOR', status: 'ACTIVE' },
+  { id: '3', username: 'shoeb', name: 'Dr. Shoeb', specialization: 'Consultant Physician', licenseNumber: 'MCI-2026-5865', role: 'DOCTOR', status: 'ACTIVE' }
 ];
 
 const getLocalDoctors = (): User[] => {
@@ -101,7 +101,9 @@ const getLocalDoctors = (): User[] => {
 
 const saveLocalDoctors = (docs: User[]) => {
   try {
-    localStorage.setItem(LOCAL_DOCTORS_KEY, JSON.stringify(docs));
+    // Ensure password is not stored in localStorage
+    const sanitized = docs.map(({ password, ...rest }) => rest);
+    localStorage.setItem(LOCAL_DOCTORS_KEY, JSON.stringify(sanitized));
   } catch (e) {}
 };
 
@@ -115,21 +117,6 @@ export const authService = {
       });
       return dbUser;
     } catch (apiErr: any) {
-      // Fallback check against local seed accounts if API returns 401 or network error
-      const localDocs = getLocalDoctors();
-      const cleanInput = username.trim().toLowerCase();
-      const match = localDocs.find(d => 
-        (d.username && d.username.toLowerCase() === cleanInput) ||
-        (d.licenseNumber && d.licenseNumber.toLowerCase() === cleanInput)
-      );
-      if (match) {
-        const expectedPass = match.password || (match.role === 'ADMIN' ? 'admin123' : 'password123');
-        if (expectedPass === password) {
-          return match;
-        } else {
-          throw new Error('API Error: 401 - Incorrect password.');
-        }
-      }
       throw apiErr;
     }
   },

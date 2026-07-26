@@ -1,6 +1,7 @@
 package com.mediscript.clinic.controller;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -85,8 +86,7 @@ public class AuthController {
         }
 
         User doctor = new User();
-        long nextId = userRepository.count() + 101;
-        doctor.setId("doc-" + nextId);
+        doctor.setId("doc-" + UUID.randomUUID().toString().substring(0, 8));
         doctor.setName(req.getName().trim());
         doctor.setSpecialization(req.getSpecialization() != null && !req.getSpecialization().trim().isEmpty() ? req.getSpecialization().trim() : "General Physician");
         doctor.setLicenseNumber(cleanLicense);

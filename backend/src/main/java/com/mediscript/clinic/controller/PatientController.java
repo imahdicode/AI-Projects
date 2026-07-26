@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -75,8 +76,7 @@ public class PatientController {
         @RequestHeader(value = "X-Doctor-Role", required = false) String role
     ) {
         if (patient.getId() == null || patient.getId().isBlank()) {
-            long nextNum = 1001 + patientRepository.count();
-            patient.setId("P-" + nextNum);
+            patient.setId("P-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
         }
         if (patient.getCreatedAt() == null) {
             patient.setCreatedAt(LocalDateTime.now());
@@ -115,6 +115,7 @@ public class PatientController {
     // ── DELETE PATIENT ─────────────────────────────────────────────────────
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Transactional
     public void delete(
         @PathVariable String id,
         @RequestHeader(value = "X-Doctor-Id", required = false) String doctorId,
