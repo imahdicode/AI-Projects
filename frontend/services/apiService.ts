@@ -1,7 +1,9 @@
 import { Patient, Visit, ClinicSettings, MedicineTemplate, User, ClinicBranch, QueueItem, InventoryItem } from '../types';
 
-import { fetchAPI, getAuthHeaders } from './api/coreApi';
+import { fetchAPI, getAuthHeaders, clearMemoryCache } from './api/coreApi';
 export { fetchAPI, getAuthHeaders };
+
+const LOCAL_DOCTORS_KEY = 'mediscript_doctors';
 
 const DEFAULT_SYSTEM_DOCTORS: User[] = [
   { id: '1', username: 'mahdi', name: 'Mahdi (Super Admin)', specialization: 'System Administrator & Owner', licenseNumber: 'ADMIN-001', role: 'ADMIN', status: 'ACTIVE' },
@@ -172,7 +174,6 @@ export const clinicBranchService = {
 export const LOCAL_PATIENTS_KEY = 'mediscript_patients';
 const LOCAL_VISITS_KEY = 'mediscript_local_visits';
 
-const DEFAULT_SEED_PATIENTS: Patient[] = [];
 
 const getLocalPatients = (): Patient[] => {
   try {
@@ -475,7 +476,7 @@ export const sessionService = {
   clearUser: () => {
     localStorage.removeItem(USER_KEY);
     sessionStorage.removeItem(USER_KEY);
-    memoryCache.clear();
+    clearMemoryCache();
   },
 };
 

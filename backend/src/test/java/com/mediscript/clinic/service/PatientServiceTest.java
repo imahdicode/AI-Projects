@@ -14,7 +14,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.mediscript.clinic.controller.ResourceNotFoundException;
+import com.mediscript.clinic.exception.ResourceNotFoundException;
 import com.mediscript.clinic.model.Patient;
 import com.mediscript.clinic.repository.PatientRepository;
 import com.mediscript.clinic.repository.VisitRepository;

@@ -16,7 +16,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { Button } from '../components/Button';
-import { patientService, LOCAL_PATIENTS_KEY } from '../services/apiService';
+import { patientService, sessionService, LOCAL_PATIENTS_KEY } from '../services/apiService';
 import { Patient, Gender } from '../types';
 
 export const PatientList: React.FC = () => {

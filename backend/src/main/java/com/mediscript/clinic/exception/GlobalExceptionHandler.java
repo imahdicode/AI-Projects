@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 
 import com.mediscript.clinic.dto.ApiErrorResponse;
-import com.mediscript.clinic.controller.ResourceNotFoundException;
+import com.mediscript.clinic.exception.ResourceNotFoundException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {

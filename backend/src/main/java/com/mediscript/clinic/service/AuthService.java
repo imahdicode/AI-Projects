@@ -47,11 +47,6 @@ public class AuthService {
         String providedPassword = request.getPassword() != null ? request.getPassword() : "";
 
         boolean matches = passwordEncoder.matches(providedPassword, expectedPassword);
-        if (!matches && expectedPassword.equals(providedPassword)) {
-            matches = true;
-            user.setPassword(passwordEncoder.encode(providedPassword));
-            userRepository.save(user);
-        }
 
         if (!matches) {
             throw new IllegalArgumentException("Incorrect password.");
@@ -122,8 +117,16 @@ public class AuthService {
     }
 
     public void deleteDoctor(String key) {
-        userRepository.findById(key).ifPresent(userRepository::delete);
-        userRepository.findByUsernameIgnoreCase(key).ifPresent(userRepository::delete);
+        var byId = userRepository.findById(key);
+        if (byId.isPresent()) {
+            userRepository.delete(byId.get());
+            return;
+        }
+        var byUsername = userRepository.findByUsernameIgnoreCase(key);
+        if (byUsername.isPresent()) {
+            userRepository.delete(byUsername.get());
+            return;
+        }
         userRepository.findByLicenseNumberIgnoreCase(key).ifPresent(userRepository::delete);
     }
 }

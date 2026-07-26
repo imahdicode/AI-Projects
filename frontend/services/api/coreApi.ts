@@ -33,12 +33,13 @@ export async function fetchAPI<T>(
     memoryCache.clear(); // Clear cache on POST, PUT, DELETE mutations
   }
 
+  const { headers: optionHeaders, ...restOptions } = options;
   const response = await fetch(url, {
+    ...restOptions,
     headers: {
       'Content-Type': 'application/json',
-      ...options.headers,
+      ...(optionHeaders as Record<string, string>),
     },
-    ...options,
   });
 
   if (!response.ok) {
@@ -56,6 +57,10 @@ export async function fetchAPI<T>(
     memoryCache.set(url, { timestamp: Date.now(), data });
   }
   return data;
+}
+
+export function clearMemoryCache(): void {
+  memoryCache.clear();
 }
 
 export function getAuthHeaders(): Record<string, string> {

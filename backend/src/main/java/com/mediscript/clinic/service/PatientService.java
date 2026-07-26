@@ -7,7 +7,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.mediscript.clinic.controller.ResourceNotFoundException;
+import com.mediscript.clinic.exception.ResourceNotFoundException;
 import com.mediscript.clinic.model.Patient;
 import com.mediscript.clinic.model.Visit;
 import com.mediscript.clinic.repository.PatientRepository;
@@ -56,6 +56,9 @@ public class PatientService {
         patient.setId(id);
         if (patient.getDoctorId() == null || patient.getDoctorId().isBlank()) {
             patient.setDoctorId(existing.getDoctorId());
+        }
+        if (patient.getCreatedAt() == null) {
+            patient.setCreatedAt(existing.getCreatedAt());
         }
         return patientRepository.save(patient);
     }
