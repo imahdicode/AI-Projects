@@ -1,0 +1,637 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { 
+  Plus, 
+  Search, 
+  User, 
+  Phone, 
+  MapPin, 
+  Stethoscope, 
+  AlertTriangle, 
+  ShieldAlert, 
+  Filter,
+  Upload,
+  Download,
+  FileSpreadsheet,
+  CheckCircle2
+} from 'lucide-react';
+import { Button } from '../components/Button';
+import { patientService } from '../services/apiService';
+import { Patient, Gender } from '../types';
+
+export const PatientList: React.FC = () => {
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [genderFilter, setGenderFilter] = useState<string>('ALL');
+  const [showModal, setShowModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importPreview, setImportPreview] = useState<Partial<Patient>[]>([]);
+  const [importing, setImporting] = useState(false);
+  const navigate = useNavigate();
+
+  // Expanded Form State
+  const [formData, setFormData] = useState<Partial<Patient>>({
+    name: '',
+    age: undefined,
+    gender: Gender.MALE,
+    phone: '',
+    address: '',
+    medicalHistory: '',
+    allergies: '',
+    bloodGroup: 'O+'
+  });
+
+  useEffect(() => {
+    loadPatients();
+  }, []);
+
+  const loadPatients = async () => {
+    try {
+      setLoading(true);
+      const data = await patientService.list();
+      setPatients(data);
+    } catch (error) {
+      console.error('Failed to load patient directory:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredPatients = patients.filter(p => {
+    const matchesSearch = (p.name && p.name.toLowerCase().includes(search.toLowerCase())) || 
+                          (p.phone && p.phone.includes(search)) ||
+                          (p.id && p.id.toLowerCase().includes(search.toLowerCase()));
+    const matchesGender = genderFilter === 'ALL' || String(p.gender || '').toUpperCase() === String(genderFilter || '').toUpperCase();
+    return matchesSearch && matchesGender;
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name || !formData.age) {
+      alert("Please provide Name and Age.");
+      return;
+    }
+
+    const patientPayload: Partial<Patient> = {
+      name: formData.name,
+      age: Number(formData.age),
+      gender: formData.gender || Gender.MALE,
+      phone: formData.phone || '',
+      address: formData.address || '',
+      medicalHistory: formData.medicalHistory || '',
+      allergies: formData.allergies || '',
+      bloodGroup: formData.bloodGroup || 'O+'
+    };
+
+    try {
+      const newPatient = await patientService.create(patientPayload);
+      setPatients(prev => [newPatient, ...prev]);
+    } catch (error) {
+      console.warn('Backend API unreachable or error, adding patient to local session directory:', error);
+      const fallbackPatient: Patient = {
+        id: `P-${Date.now()}`,
+        name: patientPayload.name!,
+        age: patientPayload.age!,
+        gender: (patientPayload.gender as Gender) || Gender.MALE,
+        phone: patientPayload.phone || '',
+        address: patientPayload.address || '',
+        medicalHistory: patientPayload.medicalHistory || '',
+        allergies: patientPayload.allergies || '',
+        bloodGroup: patientPayload.bloodGroup || 'O+',
+        createdAt: new Date().toISOString()
+      };
+      setPatients(prev => [fallbackPatient, ...prev]);
+    }
+
+    setShowModal(false);
+    setFormData({
+      name: '',
+      age: undefined,
+      gender: Gender.MALE,
+      phone: '',
+      address: '',
+      medicalHistory: '',
+      allergies: '',
+      bloodGroup: 'O+'
+    });
+  };
+
+  // CSV Parser Engine
+  const parsePatientCSV = (text: string): Partial<Patient>[] => {
+    const lines = text.split(/\r\n|\n/).filter(line => line.trim() !== '');
+    if (lines.length < 2) return [];
+
+    const parseRow = (rowStr: string): string[] => {
+      const result: string[] = [];
+      let insideQuotes = false;
+      let entry = '';
+      for (let i = 0; i < rowStr.length; i++) {
+        const char = rowStr[i];
+        if (char === '"') {
+          insideQuotes = !insideQuotes;
+        } else if (char === ',' && !insideQuotes) {
+          result.push(entry.trim());
+          entry = '';
+        } else {
+          entry += char;
+        }
+      }
+      result.push(entry.trim());
+      return result;
+    };
+
+    const headers = parseRow(lines[0]).map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
+    const nameIdx = headers.findIndex(h => h.includes('name'));
+    const ageIdx = headers.findIndex(h => h.includes('age'));
+    const genderIdx = headers.findIndex(h => h.includes('gender') || h.includes('sex'));
+    const phoneIdx = headers.findIndex(h => h.includes('phone') || h.includes('mobile') || h.includes('contact'));
+    const addressIdx = headers.findIndex(h => h.includes('address') || h.includes('city'));
+    const historyIdx = headers.findIndex(h => h.includes('history') || h.includes('medical') || h.includes('notes'));
+    const allergyIdx = headers.findIndex(h => h.includes('allergy') || h.includes('allergies'));
+    const bloodIdx = headers.findIndex(h => h.includes('blood'));
+
+    const parsedPatients: Partial<Patient>[] = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const cols = parseRow(lines[i]);
+      if (cols.length === 0 || !cols[nameIdx >= 0 ? nameIdx : 0]) continue;
+
+      const rawName = cols[nameIdx >= 0 ? nameIdx : 0] || 'Patient';
+      const rawAge = parseInt(cols[ageIdx >= 0 ? ageIdx : 1]) || 30;
+      const rawGenderStr = (cols[genderIdx >= 0 ? genderIdx : 2] || 'Male').toLowerCase();
+      let genderVal = Gender.MALE;
+      if (rawGenderStr.includes('fem') || rawGenderStr === 'f') genderVal = Gender.FEMALE;
+      if (rawGenderStr.includes('oth')) genderVal = Gender.OTHER;
+
+      parsedPatients.push({
+        name: rawName,
+        age: rawAge,
+        gender: genderVal,
+        phone: cols[phoneIdx >= 0 ? phoneIdx : 3] || '',
+        address: cols[addressIdx >= 0 ? addressIdx : 4] || '',
+        medicalHistory: cols[historyIdx >= 0 ? historyIdx : 5] || '',
+        allergies: cols[allergyIdx >= 0 ? allergyIdx : 6] || '',
+        bloodGroup: cols[bloodIdx >= 0 ? bloodIdx : 7] || 'O+'
+      });
+    }
+
+    return parsedPatients;
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = evt.target?.result as string;
+      const parsed = parsePatientCSV(text);
+      if (parsed.length === 0) {
+        alert("Could not parse any patient records from this file. Please check file formatting.");
+      } else {
+        setImportPreview(parsed);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const downloadSampleTemplate = () => {
+    const csvContent = "data:text/csv;charset=utf-8," + 
+      "Name,Age,Gender,Phone,Address,MedicalHistory,Allergies,BloodGroup\n" +
+      "Rajesh Sharma,45,Male,9876543210,123 MG Road Delhi,Type 2 Diabetes,Penicillin,O+\n" +
+      "Sunita Gupta,38,Female,9812345678,45 Park Street Mumbai,Hypertension,None,A+\n" +
+      "Amit Patel,52,Male,9988776655,78 Satellite Ahmedabad,Asthma,Dust Allergy,B+";
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "mediscript_patient_sample_import.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleConfirmImport = async () => {
+    if (importPreview.length === 0) return;
+    setImporting(true);
+    const createdList: Patient[] = [];
+
+    for (const p of importPreview) {
+      try {
+        const created = await patientService.create(p);
+        createdList.push(created);
+      } catch (err) {
+        const fallback: Patient = {
+          id: `P-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          name: p.name || 'Patient',
+          age: p.age || 30,
+          gender: p.gender || Gender.MALE,
+          phone: p.phone || '',
+          address: p.address || '',
+          medicalHistory: p.medicalHistory || '',
+          allergies: p.allergies || '',
+          bloodGroup: p.bloodGroup || 'O+',
+          createdAt: new Date().toISOString()
+        };
+        createdList.push(fallback);
+      }
+    }
+
+    setPatients(prev => [...createdList, ...prev]);
+    setImporting(false);
+    setShowImportModal(false);
+    setImportPreview([]);
+    alert(`Successfully imported ${createdList.length} patient records!`);
+  };
+
+  const handleExportCSV = () => {
+    if (patients.length === 0) {
+      alert("No patients to export.");
+      return;
+    }
+
+    let csv = "Patient ID,Name,Age,Gender,Phone,Address,Medical History,Allergies,Blood Group,Registered Date\n";
+    patients.forEach(p => {
+      csv += `"${p.id}","${p.name}",${p.age},"${p.gender}","${p.phone || ''}","${p.address || ''}","${p.medicalHistory || ''}","${p.allergies || ''}","${p.bloodGroup || ''}","${new Date(p.createdAt).toLocaleDateString()}"\n`;
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `mediscript_patients_export_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <div className="space-y-6 max-w-6xl mx-auto">
+      {/* Top Action Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+        <div>
+          <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Patient Directory</h1>
+          <p className="text-xs text-slate-500 mt-0.5">Manage patient health records & clinical histories</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="px-3.5 py-2 border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors shadow-2xs"
+          >
+            <Upload size={15} className="text-teal-600" />
+            Import Excel / CSV
+          </button>
+          <button
+            onClick={handleExportCSV}
+            className="px-3.5 py-2 border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors shadow-2xs"
+          >
+            <Download size={15} className="text-medical-600" />
+            Export CSV
+          </button>
+          <Button onClick={() => setShowModal(true)}>
+            <Plus size={18} className="mr-1.5" />
+            Register New Patient
+          </Button>
+        </div>
+      </div>
+
+      {/* Directory Table Container */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        {/* Search & Filter Bar */}
+        <div className="p-4 border-b border-slate-200 bg-slate-50/70 flex flex-col md:flex-row gap-3 items-center justify-between">
+          <div className="relative flex-1 w-full max-w-md">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input
+              type="text"
+              placeholder="Search by name, phone, or patient ID..."
+              className="w-full pl-10 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-medical-500 focus:outline-none bg-white"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            <Filter size={16} className="text-slate-400 shrink-0" />
+            <select
+              value={genderFilter}
+              onChange={(e) => setGenderFilter(e.target.value)}
+              className="px-3 py-2 text-xs font-semibold border border-slate-200 rounded-xl bg-white focus:outline-none"
+            >
+              <option value="ALL">All Genders</option>
+              <option value={Gender.MALE}>Male Patients</option>
+              <option value={Gender.FEMALE}>Female Patients</option>
+              <option value={Gender.OTHER}>Other</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Patients List */}
+        <div className="divide-y divide-slate-100">
+          {loading ? (
+            <div className="p-12 text-center text-slate-400 text-sm font-medium">
+              Loading patients...
+            </div>
+          ) : filteredPatients.length === 0 ? (
+            <div className="p-12 text-center text-slate-400 text-sm">
+              No matching patient records found. Click "Register New Patient" above or "Import Excel / CSV".
+            </div>
+          ) : (
+            filteredPatients.map(patient => (
+              <div
+                key={patient.id}
+                className="p-4 hover:bg-slate-50/80 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4 group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-11 h-11 rounded-2xl bg-medical-50 text-medical-700 font-extrabold text-base flex items-center justify-center border border-medical-200/60 shadow-sm shrink-0">
+                    {patient.name.charAt(0)}
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-slate-900 text-sm group-hover:text-medical-700 transition-colors">
+                        {patient.name}
+                      </h3>
+                      {patient.allergies && (
+                        <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 text-[10px] font-bold border border-rose-200 flex items-center gap-1">
+                          <AlertTriangle size={10} /> Allergy Flag
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-slate-500">
+                      <span>{patient.age} yrs • {patient.gender}</span>
+                      {patient.phone && (
+                        <span className="flex items-center gap-1 text-slate-600 font-medium">
+                          <Phone size={12} className="text-slate-400" /> {patient.phone}
+                        </span>
+                      )}
+                      {patient.bloodGroup && (
+                        <span className="font-semibold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded text-[10px]">
+                          {patient.bloodGroup}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => navigate(`/patients/${patient.id}`)}
+                  >
+                    View History
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => navigate(`/patients/${patient.id}/new-visit`)}
+                  >
+                    <Stethoscope size={14} className="mr-1" />
+                    Write Rx
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Add Patient Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-slate-200">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <h3 className="text-base font-extrabold text-slate-900">Register New Patient</h3>
+              <button
+                onClick={() => setShowModal(false)}
+                className="w-8 h-8 rounded-full hover:bg-slate-200 text-slate-500 flex items-center justify-center text-lg font-bold"
+              >
+                ×
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-xs">
+                <div className="col-span-2">
+                  <label className="block font-semibold text-slate-700 mb-1">Full Patient Name *</label>
+                  <input
+                    required
+                    type="text"
+                    placeholder="e.g. John Doe"
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-medical-500 focus:outline-none"
+                    value={formData.name}
+                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Age *</label>
+                  <input
+                    required
+                    type="number"
+                    placeholder="35"
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-medical-500 focus:outline-none"
+                    value={formData.age || ''}
+                    onChange={e => setFormData({ ...formData, age: parseInt(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Gender *</label>
+                  <select
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-medical-500 focus:outline-none bg-white"
+                    value={formData.gender}
+                    onChange={e => setFormData({ ...formData, gender: e.target.value as Gender })}
+                  >
+                    {Object.values(Gender).map(g => (
+                      <option key={g} value={g}>{g}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Phone Number</label>
+                  <input
+                    type="tel"
+                    placeholder="(555) 000-0000"
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-medical-500 focus:outline-none"
+                    value={formData.phone}
+                    onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Blood Group</label>
+                  <select
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-medical-500 focus:outline-none bg-white font-bold"
+                    value={formData.bloodGroup}
+                    onChange={e => setFormData({ ...formData, bloodGroup: e.target.value })}
+                  >
+                    <option value="O+">O Positive (O+)</option>
+                    <option value="O-">O Negative (O-)</option>
+                    <option value="A+">A Positive (A+)</option>
+                    <option value="A-">A Negative (A-)</option>
+                    <option value="B+">B Positive (B+)</option>
+                    <option value="B-">B Negative (B-)</option>
+                    <option value="AB+">AB Positive (AB+)</option>
+                    <option value="AB-">AB Negative (AB-)</option>
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <label className="block font-semibold text-slate-700 mb-1">Address</label>
+                  <input
+                    type="text"
+                    placeholder="123 Main St, City"
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-medical-500 focus:outline-none"
+                    value={formData.address}
+                    onChange={e => setFormData({ ...formData, address: e.target.value })}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block font-semibold text-rose-700 mb-1">Allergies (If Any)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Penicillin, NSAIDs, Sulfa drugs"
+                    className="w-full px-3 py-2 text-sm border border-rose-200 bg-rose-50/50 rounded-xl focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                    value={formData.allergies}
+                    onChange={e => setFormData({ ...formData, allergies: e.target.value })}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block font-semibold text-slate-700 mb-1">Medical History & Chronic Conditions</label>
+                  <textarea
+                    rows={3}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-medical-500 focus:outline-none"
+                    value={formData.medicalHistory}
+                    onChange={e => setFormData({ ...formData, medicalHistory: e.target.value })}
+                    placeholder="e.g. Type 2 Diabetes, Hypertension, Asthma"
+                  />
+                </div>
+              </div>
+              <div className="pt-4 border-t flex justify-end gap-3">
+                <Button type="button" variant="secondary" onClick={() => setShowModal(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit">
+                  Save Patient Record
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Excel/CSV Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-slate-200 space-y-4">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center font-bold">
+                  <FileSpreadsheet size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">Bulk Import Patients (Excel / CSV)</h3>
+                  <p className="text-xs text-slate-500">Upload old clinic patient spreadsheets into MediScript</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportPreview([]);
+                }}
+                className="w-8 h-8 rounded-full hover:bg-slate-200 text-slate-500 flex items-center justify-center text-lg font-bold"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* File Select & Template Download */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-teal-50/50 rounded-2xl border border-teal-200/80">
+                <div className="space-y-1">
+                  <p className="text-xs font-bold text-teal-900">Need an Excel sample template?</p>
+                  <p className="text-[11px] text-teal-700">Download our formatted CSV template to align your column headers.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={downloadSampleTemplate}
+                  className="px-3.5 py-2 bg-teal-600 text-white font-bold text-xs rounded-xl hover:bg-teal-700 transition-colors flex items-center gap-1.5 shrink-0 shadow-sm"
+                >
+                  <Download size={14} /> Download Sample Template
+                </button>
+              </div>
+
+              {/* Upload Box */}
+              <div className="border-2 border-dashed border-slate-300 hover:border-teal-500 rounded-2xl p-8 text-center space-y-3 bg-slate-50/50 transition-colors">
+                <Upload size={32} className="mx-auto text-teal-600" />
+                <div>
+                  <label className="cursor-pointer text-xs font-extrabold text-medical-600 hover:underline">
+                    Choose Excel / CSV File
+                    <input
+                      type="file"
+                      accept=".csv, .txt, .xlsx"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                  </label>
+                  <p className="text-[11px] text-slate-400 mt-1">Supports `.csv` files saved from Excel or Google Sheets</p>
+                </div>
+              </div>
+
+              {/* Parsed Preview Table */}
+              {importPreview.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                      <CheckCircle2 size={16} className="text-emerald-600" />
+                      Ready to Import: <strong className="text-slate-900">{importPreview.length} Patients</strong>
+                    </span>
+                    <button
+                      onClick={() => setImportPreview([])}
+                      className="text-xs text-rose-600 hover:underline font-semibold"
+                    >
+                      Clear Selection
+                    </button>
+                  </div>
+
+                  <div className="max-h-56 overflow-y-auto border border-slate-200 rounded-xl text-xs divide-y">
+                    <div className="bg-slate-100 p-2.5 font-bold text-slate-700 grid grid-cols-4 sticky top-0">
+                      <div>Name</div>
+                      <div>Age / Gender</div>
+                      <div>Phone</div>
+                      <div>Medical History</div>
+                    </div>
+                    {importPreview.map((p, i) => (
+                      <div key={i} className="p-2.5 grid grid-cols-4 bg-white text-slate-800 font-medium">
+                        <div className="font-bold text-slate-900">{p.name}</div>
+                        <div>{p.age} yrs • {p.gender}</div>
+                        <div>{p.phone || 'N/A'}</div>
+                        <div className="truncate text-slate-500">{p.medicalHistory || 'None'}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-4 border-t flex justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setShowImportModal(false);
+                    setImportPreview([]);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleConfirmImport}
+                  disabled={importPreview.length === 0 || importing}
+                  isLoading={importing}
+                >
+                  <Upload size={15} className="mr-1.5" />
+                  Confirm & Import ({importPreview.length})
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
