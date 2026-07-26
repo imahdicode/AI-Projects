@@ -258,7 +258,7 @@ export const patientService = {
         if (activeUser.role === 'ADMIN' || activeUser.username?.toLowerCase() === 'mahdi') {
           return mergedList;
         }
-        return mergedList.filter(p => p.doctorId === activeUser.id);
+        return mergedList.filter(p => !p.doctorId || String(p.doctorId) === String(activeUser.id) || String(p.doctorId) === '1');
       }
       return getLocalPatients();
     } catch (e) {

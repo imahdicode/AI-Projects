@@ -28,15 +28,7 @@ public class PatientService {
         if ("ADMIN".equalsIgnoreCase(role) || doctorId == null || doctorId.isBlank()) {
             return patientRepository.findAll();
         }
-        List<Patient> docPatients = patientRepository.findByDoctorId(doctorId);
-        List<Patient> defaultPatients = patientRepository.findByDoctorId("1");
-        List<Patient> combined = new java.util.ArrayList<>(docPatients);
-        for (Patient p : defaultPatients) {
-            if (!combined.contains(p)) {
-                combined.add(p);
-            }
-        }
-        return combined;
+        return patientRepository.findAccessiblePatients(List.of(doctorId, "1"));
     }
 
     public Patient getPatient(String id, String doctorId, String role) {
