@@ -339,51 +339,56 @@ export const PatientList: React.FC = () => {
   const handleConfirmImport = async () => {
     if (importPreview.length === 0) return;
     setImporting(true);
-    const createdList: Patient[] = [];
     const baseTimestamp = Date.now();
     const activeUser = sessionService.getUser();
     const currentDocId = activeUser?.id || '1';
 
-    for (let idx = 0; idx < importPreview.length; idx++) {
-      const p = importPreview[idx];
+    const preparedList: Patient[] = importPreview.map((p, idx) => {
       const uniqueId = `P-${baseTimestamp}-${idx}-${Math.random().toString(36).substring(2, 6)}`;
-      const payload: Partial<Patient> = {
-        ...p,
-        id: uniqueId,
-        doctorId: p.doctorId || currentDocId
-      };
-      try {
-        const created = await patientService.create(payload);
-        createdList.push(created);
-      } catch (err) {
-        const fallback: Patient = {
-          id: uniqueId,
-          name: p.name || 'Patient',
-          age: p.age || 30,
-          gender: (p.gender as any) || Gender.MALE,
-          phone: p.phone || '',
-          address: p.address || '',
-          medicalHistory: p.medicalHistory || '',
-          allergies: p.allergies || '',
-          bloodGroup: p.bloodGroup || 'O+',
-          doctorId: currentDocId,
-          createdAt: new Date().toISOString()
-        };
-        createdList.push(fallback);
+      let uppercaseGender = Gender.MALE;
+      if (p.gender) {
+        const gStr = String(p.gender).toUpperCase();
+        if (gStr.includes('FEM') || gStr === 'F') uppercaseGender = Gender.FEMALE;
+        else if (gStr.includes('OTH') || gStr === 'O') uppercaseGender = Gender.OTHER;
       }
-    }
+      return {
+        id: uniqueId,
+        name: p.name && p.name.trim() ? p.name.trim() : `Patient ${idx + 1}`,
+        age: isNaN(Number(p.age)) || Number(p.age) < 0 ? 30 : Math.floor(Number(p.age)),
+        gender: uppercaseGender,
+        phone: p.phone || '',
+        address: p.address || '',
+        medicalHistory: p.medicalHistory || '',
+        allergies: p.allergies || '',
+        bloodGroup: p.bloodGroup || 'O+',
+        doctorId: currentDocId,
+        createdAt: new Date().toISOString()
+      };
+    });
 
+    // Instant UI Reactivity — Update Screen & Close Modal in 0 Milliseconds
     setPatients(prev => {
       const mergedMap = new Map<string, Patient>();
-      prev.forEach(p => mergedMap.set(p.id, p));
-      createdList.forEach(p => mergedMap.set(p.id, p));
+      prev.forEach(item => mergedMap.set(item.id, item));
+      preparedList.forEach(item => mergedMap.set(item.id, item));
       return Array.from(mergedMap.values());
     });
+
     setImporting(false);
     setShowImportModal(false);
     setImportPreview([]);
-    alert(`Successfully imported ${createdList.length} patient records!`);
-    await loadPatients();
+
+    // Fire all API insertions concurrently in parallel (non-blocking)
+    Promise.all(
+      preparedList.map(patientItem => 
+        patientService.create(patientItem).catch(err => {
+          console.warn('Background sync for imported patient fallback:', err);
+          return patientItem;
+        })
+      )
+    ).then(() => {
+      loadPatients();
+    });
   };
 
   const handleExportCSV = () => {
