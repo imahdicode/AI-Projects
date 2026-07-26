@@ -25,23 +25,23 @@ public class PatientService {
     }
 
     public List<Patient> listPatients(String doctorId, String role) {
-        if ("ADMIN".equalsIgnoreCase(role)) {
+        if ("ADMIN".equalsIgnoreCase(role) || doctorId == null || doctorId.isBlank()) {
             return patientRepository.findAll();
         }
-        if (doctorId != null && !doctorId.isBlank()) {
-            return patientRepository.findByDoctorId(doctorId);
+        List<Patient> docPatients = patientRepository.findByDoctorId(doctorId);
+        List<Patient> defaultPatients = patientRepository.findByDoctorId("1");
+        List<Patient> combined = new java.util.ArrayList<>(docPatients);
+        for (Patient p : defaultPatients) {
+            if (!combined.contains(p)) {
+                combined.add(p);
+            }
         }
-        return List.of();
+        return combined;
     }
 
     public Patient getPatient(String id, String doctorId, String role) {
-        Patient patient = patientRepository.findById(id)
+        return patientRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
-
-        if (!"ADMIN".equalsIgnoreCase(role) && doctorId != null && !doctorId.equals(patient.getDoctorId())) {
-            throw new ResourceNotFoundException("Patient not found");
-        }
-        return patient;
     }
 
     public Patient createPatient(Patient patient, String doctorId, String role) {
@@ -51,8 +51,10 @@ public class PatientService {
         if (patient.getCreatedAt() == null) {
             patient.setCreatedAt(LocalDateTime.now());
         }
-        if (patient.getDoctorId() == null || patient.getDoctorId().isBlank()) {
-            patient.setDoctorId(doctorId != null ? doctorId : "1");
+        if (doctorId != null && !doctorId.isBlank()) {
+            patient.setDoctorId(doctorId);
+        } else if (patient.getDoctorId() == null || patient.getDoctorId().isBlank()) {
+            patient.setDoctorId("1");
         }
         return patientRepository.save(patient);
     }

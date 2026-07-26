@@ -256,7 +256,7 @@ const getLocalPatients = (): Patient[] => {
     if (activeUser.role === 'ADMIN' || activeUser.username?.toLowerCase() === 'mahdi') {
       return list;
     }
-    return list.filter(p => p.doctorId === activeUser.id);
+    return list.filter(p => !p.doctorId || String(p.doctorId) === String(activeUser.id) || String(p.doctorId) === '1');
   } catch (e) {
     return [];
   }
