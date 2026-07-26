@@ -63,21 +63,34 @@ function getAuthHeaders(): Record<string, string> {
   }
 }
 
-const LOCAL_DOCTORS_KEY = 'mediscript_doctors';
+const DEFAULT_SYSTEM_DOCTORS: User[] = [
+  { id: '1', username: 'mahdi', password: 'admin123', name: 'Mahdi (Super Admin)', specialization: 'System Administrator & Owner', licenseNumber: 'ADMIN-001', role: 'ADMIN', status: 'ACTIVE' },
+  { id: '2', username: 'farid', password: 'password123', name: 'Dr. Farid Ansari', specialization: 'General Physician', licenseNumber: 'MCI-2026-4469', role: 'DOCTOR', status: 'ACTIVE' },
+  { id: '3', username: 'shoeb', password: 'password123', name: 'Dr. Shoeb', specialization: 'Consultant Physician', licenseNumber: 'MCI-2026-5865', role: 'DOCTOR', status: 'ACTIVE' }
+];
 
 const getLocalDoctors = (): User[] => {
+  let list: User[] = [];
   try {
     const raw = localStorage.getItem(LOCAL_DOCTORS_KEY);
     if (raw) {
-      const parsed: User[] = JSON.parse(raw);
-      if (parsed.length > 0) return parsed;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) list = parsed;
     }
   } catch (e) {}
-  return [
-    { id: '1', username: 'mahdi', name: 'Mahdi (Super Admin)', specialization: 'System Administrator & Owner', licenseNumber: 'ADMIN-001', role: 'ADMIN', status: 'ACTIVE' },
-    { id: '2', username: 'farid', name: 'Dr. Farid Ansari', specialization: 'General Physician', licenseNumber: 'MCI-2026-4469', role: 'DOCTOR', status: 'ACTIVE' },
-    { id: '3', username: 'shoeb', name: 'Dr. Shoeb', specialization: 'Consultant Physician', licenseNumber: 'MCI-2026-5865', role: 'DOCTOR', status: 'ACTIVE' }
-  ];
+
+  // Merge default system accounts (mahdi, farid, shoeb) so stale localStorage never breaks auth
+  DEFAULT_SYSTEM_DOCTORS.forEach(def => {
+    const idx = list.findIndex(d => d.username && d.username.toLowerCase() === def.username.toLowerCase());
+    if (idx < 0) {
+      list.unshift(def);
+    } else {
+      // Keep credentials up to date
+      list[idx] = { ...def, ...list[idx] };
+    }
+  });
+
+  return list;
 };
 
 const saveLocalDoctors = (docs: User[]) => {
