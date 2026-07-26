@@ -117,62 +117,112 @@ export const PatientList: React.FC = () => {
     });
   };
 
-  // CSV Parser Engine
-  const parsePatientCSV = (text: string): Partial<Patient>[] => {
-    const lines = text.split(/\r\n|\n/).filter(line => line.trim() !== '');
-    if (lines.length < 2) return [];
+  // Robust CSV Parser Engine with BOM, quote, and header handling
+  const parsePatientCSV = (rawText: string): Partial<Patient>[] => {
+    const cleanText = rawText.replace(/^\uFEFF/, '').trim();
+    if (!cleanText) return [];
 
-    const parseRow = (rowStr: string): string[] => {
-      const result: string[] = [];
-      let insideQuotes = false;
+    // State-machine row splitter (handles quoted multiline fields)
+    const rawRows: string[] = [];
+    let currentRow = '';
+    let inQuotes = false;
+    for (let i = 0; i < cleanText.length; i++) {
+      const char = cleanText[i];
+      if (char === '"') {
+        inQuotes = !inQuotes;
+        currentRow += char;
+      } else if ((char === '\n' || char === '\r') && !inQuotes) {
+        if (char === '\r' && cleanText[i + 1] === '\n') {
+          i++;
+        }
+        if (currentRow.trim()) {
+          rawRows.push(currentRow);
+        }
+        currentRow = '';
+      } else {
+        currentRow += char;
+      }
+    }
+    if (currentRow.trim()) {
+      rawRows.push(currentRow);
+    }
+
+    if (rawRows.length < 2) return [];
+
+    // Column parser for individual CSV rows
+    const parseRowCols = (rowStr: string): string[] => {
+      const cols: string[] = [];
       let entry = '';
+      let inside = false;
       for (let i = 0; i < rowStr.length; i++) {
         const char = rowStr[i];
         if (char === '"') {
-          insideQuotes = !insideQuotes;
-        } else if (char === ',' && !insideQuotes) {
-          result.push(entry.trim());
+          if (inside && rowStr[i + 1] === '"') {
+            entry += '"';
+            i++;
+          } else {
+            inside = !inside;
+          }
+        } else if (char === ',' && !inside) {
+          cols.push(entry.trim().replace(/^"|"$/g, ''));
           entry = '';
         } else {
           entry += char;
         }
       }
-      result.push(entry.trim());
-      return result;
+      cols.push(entry.trim().replace(/^"|"$/g, ''));
+      return cols;
     };
 
-    const headers = parseRow(lines[0]).map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
-    const nameIdx = headers.findIndex(h => h.includes('name'));
-    const ageIdx = headers.findIndex(h => h.includes('age'));
-    const genderIdx = headers.findIndex(h => h.includes('gender') || h.includes('sex'));
-    const phoneIdx = headers.findIndex(h => h.includes('phone') || h.includes('mobile') || h.includes('contact'));
-    const addressIdx = headers.findIndex(h => h.includes('address') || h.includes('city'));
-    const historyIdx = headers.findIndex(h => h.includes('history') || h.includes('medical') || h.includes('notes'));
-    const allergyIdx = headers.findIndex(h => h.includes('allergy') || h.includes('allergies'));
-    const bloodIdx = headers.findIndex(h => h.includes('blood'));
+    // Header column detection
+    const headerCols = parseRowCols(rawRows[0]).map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
+
+    let nameIdx = headerCols.findIndex(h => h.includes('name') || h.includes('patient'));
+    let ageIdx = headerCols.findIndex(h => h.includes('age') || h.includes('dob') || h.includes('year'));
+    let genderIdx = headerCols.findIndex(h => h.includes('gender') || h.includes('sex'));
+    let phoneIdx = headerCols.findIndex(h => h.includes('phone') || h.includes('mobile') || h.includes('contact') || h.includes('number'));
+    let addressIdx = headerCols.findIndex(h => h.includes('address') || h.includes('city') || h.includes('location'));
+    let historyIdx = headerCols.findIndex(h => h.includes('history') || h.includes('medical') || h.includes('notes') || h.includes('diagnosis'));
+    let allergyIdx = headerCols.findIndex(h => h.includes('allergy') || h.includes('allergies'));
+    let bloodIdx = headerCols.findIndex(h => h.includes('blood') || h.includes('group'));
+
+    if (nameIdx < 0) nameIdx = 0;
+    if (ageIdx < 0) ageIdx = 1;
+    if (genderIdx < 0) genderIdx = 2;
+    if (phoneIdx < 0) phoneIdx = 3;
+    if (addressIdx < 0) addressIdx = 4;
+    if (historyIdx < 0) historyIdx = 5;
+    if (allergyIdx < 0) allergyIdx = 6;
+    if (bloodIdx < 0) bloodIdx = 7;
 
     const parsedPatients: Partial<Patient>[] = [];
 
-    for (let i = 1; i < lines.length; i++) {
-      const cols = parseRow(lines[i]);
-      if (cols.length === 0 || !cols[nameIdx >= 0 ? nameIdx : 0]) continue;
+    for (let i = 1; i < rawRows.length; i++) {
+      const cols = parseRowCols(rawRows[i]);
+      if (cols.length === 0) continue;
 
-      const rawName = cols[nameIdx >= 0 ? nameIdx : 0] || 'Patient';
-      const rawAge = parseInt(cols[ageIdx >= 0 ? ageIdx : 1]) || 30;
-      const rawGenderStr = (cols[genderIdx >= 0 ? genderIdx : 2] || 'Male').toLowerCase();
+      const rawName = cols[nameIdx] || '';
+      if (!rawName.trim()) continue;
+
+      const parsedAge = parseInt(cols[ageIdx]) || 30;
+      const rawGender = (cols[genderIdx] || 'Male').toLowerCase();
+
       let genderVal = Gender.MALE;
-      if (rawGenderStr.includes('fem') || rawGenderStr === 'f') genderVal = Gender.FEMALE;
-      if (rawGenderStr.includes('oth')) genderVal = Gender.OTHER;
+      if (rawGender.includes('fem') || rawGender === 'f') {
+        genderVal = Gender.FEMALE;
+      } else if (rawGender.includes('oth') || rawGender === 'o') {
+        genderVal = Gender.OTHER;
+      }
 
       parsedPatients.push({
-        name: rawName,
-        age: rawAge,
+        name: rawName.trim(),
+        age: parsedAge,
         gender: genderVal,
-        phone: cols[phoneIdx >= 0 ? phoneIdx : 3] || '',
-        address: cols[addressIdx >= 0 ? addressIdx : 4] || '',
-        medicalHistory: cols[historyIdx >= 0 ? historyIdx : 5] || '',
-        allergies: cols[allergyIdx >= 0 ? allergyIdx : 6] || '',
-        bloodGroup: cols[bloodIdx >= 0 ? bloodIdx : 7] || 'O+'
+        phone: cols[phoneIdx] || '',
+        address: cols[addressIdx] || '',
+        medicalHistory: cols[historyIdx] || '',
+        allergies: cols[allergyIdx] || '',
+        bloodGroup: cols[bloodIdx] || 'O+'
       });
     }
 
@@ -188,12 +238,13 @@ export const PatientList: React.FC = () => {
       const text = evt.target?.result as string;
       const parsed = parsePatientCSV(text);
       if (parsed.length === 0) {
-        alert("Could not parse any patient records from this file. Please check file formatting.");
+        alert("Could not parse any patient records from this CSV file. Please make sure it has headers and valid patient rows.");
       } else {
         setImportPreview(parsed);
       }
     };
     reader.readAsText(file);
+    e.target.value = ''; // Reset input so re-uploading same file triggers onChange
   };
 
   const downloadSampleTemplate = () => {
