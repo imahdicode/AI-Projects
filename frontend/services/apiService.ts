@@ -294,8 +294,16 @@ export const patientService = {
         headers: getAuthHeaders(),
       });
       if (Array.isArray(apiPatients)) {
-        localStorage.setItem(LOCAL_PATIENTS_KEY, JSON.stringify(apiPatients));
-        return apiPatients;
+        // Merge backend patients with doctor-scoped local patients so imported data is preserved
+        const localPatients = getLocalPatients();
+        const combined = [...apiPatients];
+        localPatients.forEach(lp => {
+          if (!combined.some(ap => ap.id === lp.id)) {
+            combined.unshift(lp);
+          }
+        });
+        localStorage.setItem(LOCAL_PATIENTS_KEY, JSON.stringify(combined));
+        return combined;
       }
       return getLocalPatients();
     } catch (e) {
@@ -329,9 +337,12 @@ export const patientService = {
   },
 
   create: async (patient: Partial<Patient>): Promise<Patient> => {
+    const activeUser = sessionService.getUser();
+    const currentDocId = patient.doctorId || activeUser?.id || '1';
     const uppercaseGender = (patient.gender ? String(patient.gender).toUpperCase() : 'MALE');
     const payload = {
       ...patient,
+      doctorId: currentDocId,
       gender: uppercaseGender
     };
 
@@ -341,12 +352,13 @@ export const patientService = {
         body: JSON.stringify(payload),
         headers: getAuthHeaders(),
       });
-      saveLocalPatient(created);
-      return created;
+      const withDoc = { ...created, doctorId: created.doctorId || currentDocId };
+      saveLocalPatient(withDoc);
+      return withDoc;
     } catch (e) {
       console.warn('Backend POST failed, saving to persistent local storage:', e);
       const fallback: Patient = {
-        id: patient.id || `P-${Date.now()}`,
+        id: patient.id || `P-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
         name: patient.name || 'Unknown Patient',
         age: Number(patient.age) || 0,
         gender: (patient.gender as any) || 'Male',
@@ -355,6 +367,7 @@ export const patientService = {
         medicalHistory: patient.medicalHistory || '',
         allergies: patient.allergies || '',
         bloodGroup: patient.bloodGroup || 'O+',
+        doctorId: currentDocId,
         createdAt: new Date().toISOString()
       };
       saveLocalPatient(fallback);

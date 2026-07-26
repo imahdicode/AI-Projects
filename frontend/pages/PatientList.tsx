@@ -289,7 +289,7 @@ export const PatientList: React.FC = () => {
       }
     }
 
-    setPatients(prev => [...createdList, ...prev]);
+    await loadPatients();
     setImporting(false);
     setShowImportModal(false);
     setImportPreview([]);
