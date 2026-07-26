@@ -367,25 +367,26 @@ export const patientService = {
       else uppercaseGender = 'MALE';
     }
 
-    const payload = {
-      ...patient,
-      doctorId: currentDocId,
-      gender: uppercaseGender
-    };
+    const cleanName = (patient.name && patient.name.trim()) ? patient.name.trim() : 'Patient Record';
+    const cleanAge = isNaN(Number(patient.age)) || Number(patient.age) < 0 ? 30 : Math.floor(Number(patient.age));
+    const tempId = patient.id || `P-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
 
-    // Pre-save to local storage immediately
-    const tempId = patient.id || `P-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
-    const localPatient: Patient = {
+    const payload = {
       id: tempId,
-      name: patient.name || 'Unknown Patient',
-      age: Number(patient.age) || 0,
-      gender: uppercaseGender as any,
+      name: cleanName,
+      age: cleanAge,
+      gender: uppercaseGender,
       phone: patient.phone || '',
       address: patient.address || '',
       medicalHistory: patient.medicalHistory || '',
       allergies: patient.allergies || '',
       bloodGroup: patient.bloodGroup || 'O+',
-      doctorId: currentDocId,
+      doctorId: currentDocId
+    };
+
+    const localPatient: Patient = {
+      ...payload,
+      gender: uppercaseGender as any,
       createdAt: new Date().toISOString()
     };
     saveLocalPatient(localPatient);
