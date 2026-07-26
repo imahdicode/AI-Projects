@@ -245,10 +245,32 @@ export const clinicBranchService = {
 const LOCAL_PATIENTS_KEY = 'mediscript_local_patients';
 const LOCAL_VISITS_KEY = 'mediscript_local_visits';
 
+const DEFAULT_SEED_PATIENTS: Patient[] = [
+  { id: 'P-1001', name: 'Rajesh Sharma', age: 45, gender: 'MALE' as any, phone: '9876543210', address: '123 MG Road Connaught Place Delhi', medicalHistory: 'Type 2 Diabetes & Mild Hypertension', allergies: 'Penicillin', bloodGroup: 'O+', doctorId: '2', createdAt: new Date().toISOString() },
+  { id: 'P-1002', name: 'Sunita Gupta', age: 38, gender: 'FEMALE' as any, phone: '9812345678', address: '45 Park Street Kolkata', medicalHistory: 'GERD', allergies: 'Sulfa Drugs', bloodGroup: 'A+', doctorId: '2', createdAt: new Date().toISOString() },
+  { id: 'P-1003', name: 'Amit Patel', age: 52, gender: 'MALE' as any, phone: '9988776655', address: '78 Satellite Road Ahmedabad', medicalHistory: 'Bronchial Asthma', allergies: 'Dust & Pollen', bloodGroup: 'B+', doctorId: '2', createdAt: new Date().toISOString() },
+  { id: 'P-1004', name: 'Priya Nair', age: 29, gender: 'FEMALE' as any, phone: '9765432109', address: '12 Indiranagar Bengaluru', medicalHistory: 'Migraine', allergies: 'NSAIDs', bloodGroup: 'O-', doctorId: '2', createdAt: new Date().toISOString() },
+  { id: 'P-1005', name: 'Vikram Singh', age: 61, gender: 'MALE' as any, phone: '9123456789', address: '90 Civil Lines Jaipur', medicalHistory: 'Osteoarthritis Knee Joint', allergies: 'None', bloodGroup: 'AB+', doctorId: '2', createdAt: new Date().toISOString() },
+  { id: 'P-1006', name: 'Ananya Iyer', age: 34, gender: 'FEMALE' as any, phone: '9845012345', address: '56 T Nagar Chennai', medicalHistory: 'Hypothyroidism', allergies: 'None', bloodGroup: 'B+', doctorId: '3', createdAt: new Date().toISOString() },
+  { id: 'P-1007', name: 'Rohan Kulkarni', age: 26, gender: 'MALE' as any, phone: '9730098765', address: '88 FC Road Pune', medicalHistory: 'Allergies', allergies: 'Peanuts', bloodGroup: 'O+', doctorId: '3', createdAt: new Date().toISOString() },
+  { id: 'P-1008', name: 'Kavita Reddy', age: 48, gender: 'FEMALE' as any, phone: '9949011223', address: '34 Jubilee Hills Hyderabad', medicalHistory: 'Hypertension', allergies: 'None', bloodGroup: 'A+', doctorId: '3', createdAt: new Date().toISOString() },
+  { id: 'P-1009', name: 'Deepak Deshmukh', age: 58, gender: 'MALE' as any, phone: '9822033445', address: '12 Marine Drive Mumbai', medicalHistory: 'Hyperlipidemia', allergies: 'Statin Sensitivity', bloodGroup: 'B-', doctorId: '3', createdAt: new Date().toISOString() },
+  { id: 'P-1010', name: 'Meera Banerjee', age: 41, gender: 'FEMALE' as any, phone: '9830055667', address: '67 Salt Lake Kolkata', medicalHistory: 'Anemia', allergies: 'None', bloodGroup: 'AB-', doctorId: '3', createdAt: new Date().toISOString() }
+];
+
 const getLocalPatients = (): Patient[] => {
   try {
     const raw = localStorage.getItem(LOCAL_PATIENTS_KEY);
-    const list: Patient[] = raw ? JSON.parse(raw) : [];
+    let list: Patient[] = raw ? JSON.parse(raw) : [];
+    
+    // Merge DEFAULT_SEED_PATIENTS if list is empty or missing seeds
+    DEFAULT_SEED_PATIENTS.forEach(seed => {
+      if (!list.some(p => p.id === seed.id)) {
+        list.push(seed);
+      }
+    });
+    localStorage.setItem(LOCAL_PATIENTS_KEY, JSON.stringify(list));
+
     const activeUser = sessionService.getUser();
     if (!activeUser) return [];
     if (activeUser.role === 'ADMIN' || activeUser.username?.toLowerCase() === 'mahdi') {
