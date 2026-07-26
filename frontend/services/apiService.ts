@@ -75,7 +75,10 @@ const getLocalDoctors = (): User[] => {
     const raw = localStorage.getItem(LOCAL_DOCTORS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) list = parsed;
+      if (Array.isArray(parsed)) {
+        // Filter out legacy dummy placeholder accounts
+        list = parsed.filter(d => !['dr.smith', 'dr.johnson', 'dr.patel'].includes(d.username?.toLowerCase() || ''));
+      }
     }
   } catch (e) {}
 
@@ -83,12 +86,15 @@ const getLocalDoctors = (): User[] => {
   DEFAULT_SYSTEM_DOCTORS.forEach(def => {
     const idx = list.findIndex(d => d.username && d.username.toLowerCase() === def.username.toLowerCase());
     if (idx < 0) {
-      list.unshift(def);
+      list.push(def);
     } else {
-      // Keep credentials up to date
       list[idx] = { ...def, ...list[idx] };
     }
   });
+
+  try {
+    localStorage.setItem(LOCAL_DOCTORS_KEY, JSON.stringify(list));
+  } catch (e) {}
 
   return list;
 };
@@ -132,12 +138,13 @@ export const authService = {
     try {
       const dbUsers = await fetchAPI<User[]>('/api/auth/doctors');
       if (Array.isArray(dbUsers)) {
-        saveLocalDoctors(dbUsers);
-        return dbUsers;
+        const cleanDocs = dbUsers.filter(d => !['dr.smith', 'dr.johnson', 'dr.patel'].includes(d.username?.toLowerCase() || ''));
+        saveLocalDoctors(cleanDocs);
+        return cleanDocs;
       }
     } catch (e) {}
 
-    return getLocalDoctors();
+    return getLocalDoctors().filter(d => d.role === 'DOCTOR');
   },
 
   registerDoctor: async (data: {
