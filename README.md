@@ -29,6 +29,8 @@ For reviewers, recruiters, and live testers:
 | **Doctor** | `shoeb` | **DOCTOR (Practitioner)** | Dr. Shoeb's OPD Queue, Patient Directory, Visit Recorder |
 
 > *Note: Demo passwords available upon request or via automated seed environment.*
+> 
+> 🔒 **Security Note**: This live demonstration environment contains non-sensitive synthetic sample data. Production environment variables (database connection strings, JWT signing keys, and API secrets) are managed exclusively via cloud key vaults (Render / Vercel) and are completely excluded from source control.
 
 ---
 
