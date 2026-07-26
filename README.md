@@ -18,28 +18,93 @@ MediScript is a production-grade, multi-tenant Clinic & EHR Management System bu
 
 ---
 
-## 🔑 Demo Login Credentials
+## 🔑 Demo Access & Role Accounts
 
-For recruiters, reviewers, and live testers:
+For reviewers, recruiters, and live testers:
 
-| Portal Tab | Username | Password | Role | Access Level |
-|---|---|---|---|---|
-| **Admin** | `mahdi` | `admin123` | **ADMIN** | Super Admin Control Panel, Doctor Management |
-| **Doctor** | `farid` | `password123` | **DOCTOR** | Dr. Farid Ansari's OPD Queue & Patient Records |
-| **Doctor** | `shoeb` | `password123` | **DOCTOR** | Dr. Shoeb's OPD Queue & Patient Records |
+| Portal Tab | Username | Access & Role | Description |
+|---|---|---|---|
+| **Admin** | `mahdi` | **ADMIN (Super Admin)** | Super Admin Control Panel, Doctor Onboarding, Multi-Branch Management |
+| **Doctor** | `farid` | **DOCTOR (Practitioner)** | Dr. Farid Ansari's OPD Queue, Patient Directory, Visit Recorder |
+| **Doctor** | `shoeb` | **DOCTOR (Practitioner)** | Dr. Shoeb's OPD Queue, Patient Directory, Visit Recorder |
+
+> *Note: Demo passwords available upon request or via automated seed environment.*
 
 ---
 
-## ✨ Key Features
+## ⚡ Engineering Highlights
 
-- 🔐 **BCrypt & JWT Authentication**: Server-side BCrypt password hashing with 24-hour signed JWT tokens.
-- 👨‍⚕️ **Multi-Tenant Data Isolation**: Super Admins retain global visibility; Doctors access only their assigned patients.
+- 🔐 **BCrypt Password Hashing**: Server-side salted hash password protection using Spring Security `BCryptPasswordEncoder`.
+- 🎟️ **Stateless JWT Tokens**: 24-hour signed JSON Web Tokens (`JJWT`) with claims-based access.
+- 🏗️ **Service Layer Architecture**: Decoupled design separating REST controllers from JPA repository business logic.
+- 👨‍⚕️ **Multi-Tenant Data Isolation**: Multi-tenant data segregation ensuring doctors only access their assigned patients while admins retain system-wide visibility.
 - 📋 **OPD Queue & Vitals**: Real-time waiting list, token generator, vitals tracking, and printable queue slips.
-- 💊 **AI Prescription & Visit Recorder**: Quick consultation entry, Gemini AI symptom analysis, lab orders, and printable prescription receipts.
+- 💊 **AI Prescription & Visit Recorder**: Quick consultation entry with Gemini AI clinical assistance, lab orders, and printable prescription receipts.
 - 📦 **Pharmacy Stock Inventory**: Real-time medicine stock tracking, batch management, low-stock alerts, and pricing.
-- 🏬 **Multi-Branch Management**: Clinic branch registry with doctor counts and regional configurations.
-- 🔄 **Flyway DB Migrations**: Structured SQL schema versioning for zero-downtime database upgrades.
-- 🐳 **Full Dockerization**: Multi-stage Dockerfiles for frontend, backend, and PostgreSQL orchestration.
+- 🔄 **Flyway Database Migrations**: Structured SQL schema versioning (`V1__init_schema.sql`) for zero-downtime database upgrades.
+- 🐳 **Full Containerization**: Multi-stage Dockerfiles for frontend, backend, and PostgreSQL orchestration.
+
+---
+
+## 📁 Project Structure
+
+```text
+mediscript---clinic-management-system/
+├── frontend/                     # React 19 + TypeScript + Vite SPA
+│   ├── components/               # Reusable UI components (Layout, Modals, Buttons)
+│   ├── pages/                    # Page components (Dashboard, DoctorQueue, PatientList, etc.)
+│   ├── services/                 # API service layer (apiService.ts, geminiService.ts)
+│   ├── types.ts                  # TypeScript interfaces and domain models
+│   ├── Dockerfile                # Multi-stage Nginx production container
+│   └── vercel.json               # Vercel SPA rewrite configuration
+│
+├── backend/                      # Spring Boot 3.3.5 Backend REST API
+│   ├── src/main/java/com/mediscript/clinic/
+│   │   ├── config/               # SecurityConfig, CorsConfig
+│   │   ├── controller/           # REST Controllers (Auth, Patient, Queue, Inventory, etc.)
+│   │   ├── model/                # JPA Entities (User, Patient, Visit, QueueItem, etc.)
+│   │   ├── repository/           # Spring Data JPA Repositories
+│   │   ├── security/             # JwtUtils, JwtAuthenticationFilter
+│   │   └── service/              # Business Service Layer (PatientService, AuthService)
+│   ├── src/main/resources/       # application.properties & Flyway SQL migrations
+│   ├── src/test/java/            # JUnit 5 + Mockito Unit Tests
+│   └── Dockerfile                # Multi-stage Maven JRE production container
+│
+├── docker-compose.yml            # Multi-container orchestration (PostgreSQL + Backend + Frontend)
+└── README.md                     # Project documentation
+```
+
+---
+
+## 📡 API Request & Response Examples
+
+### Authentication Endpoint: `POST /api/auth/login`
+
+**Request:**
+```http
+POST /api/auth/login HTTP/1.1
+Host: mediscript-api.onrender.com
+Content-Type: application/json
+
+{
+  "username": "mahdi",
+  "password": "••••••••"
+}
+```
+
+**Response (`200 OK`):**
+```json
+{
+  "id": "1",
+  "username": "mahdi",
+  "name": "Mahdi (Super Admin)",
+  "specialization": "System Administrator & Owner",
+  "licenseNumber": "ADMIN-001",
+  "role": "ADMIN",
+  "status": "ACTIVE",
+  "token": "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJtYWhka..."
+}
+```
 
 ---
 
@@ -74,13 +139,13 @@ graph TB
 
 ---
 
-## 🛠️ Tech Stack & Architecture
+## 🗺️ Roadmap & Future Enhancements
 
-- **Frontend**: React 19, TypeScript, Vite, Tailwind CSS, Lucide Icons, React Router 7
-- **Backend**: Java 17, Spring Boot 3.3.5, Spring Security, Spring Data JPA, Hibernate, JJWT
-- **Database**: PostgreSQL 16 (Neon Cloud) / H2 In-Memory (Dev Profile), Flyway Migrations
-- **AI Integration**: Google Gemini 2.5 Flash
-- **DevOps**: Docker, Docker Compose, Render (Backend API), Vercel (Frontend SPA)
+- 📅 **Appointment Scheduling & Calendar**: Online patient appointment booking with calendar slots.
+- 💳 **Billing & Automated Invoicing**: PDF invoice generation and digital payment integration.
+- 📱 **SMS / WhatsApp Notifications**: Automated appointment reminders and token queue updates.
+- 📑 **PDF Prescription Export**: One-click downloadable PDF prescriptions.
+- 📊 **Advanced Analytics & Reporting**: Financial revenue tracking and patient demographics analytics.
 
 ---
 
@@ -89,7 +154,7 @@ graph TB
 ### Prerequisites
 - JDK 17+
 - Node.js 18+
-- Maven 3.9+ (or use embedded `./mvnw`)
+- Maven 3.9+ (or embedded `./mvnw`)
 
 ### 1. Backend Setup
 ```bash
