@@ -8,16 +8,16 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.mediscript.clinic.model.Visit;
-import com.mediscript.clinic.repository.VisitRepository;
+import com.mediscript.clinic.service.PatientService;
 
 @RestController
 @RequestMapping("/api/visits")
 public class RecentVisitController {
 
-    private final VisitRepository visitRepository;
+    private final PatientService patientService;
 
-    public RecentVisitController(VisitRepository visitRepository) {
-        this.visitRepository = visitRepository;
+    public RecentVisitController(PatientService patientService) {
+        this.patientService = patientService;
     }
 
     @GetMapping
@@ -25,12 +25,6 @@ public class RecentVisitController {
         @RequestHeader(value = "X-Doctor-Id", required = false) String doctorId,
         @RequestHeader(value = "X-Doctor-Role", required = false) String role
     ) {
-        if ("ADMIN".equalsIgnoreCase(role)) {
-            return visitRepository.findAllByOrderByDateDesc();
-        }
-        if (doctorId != null && !doctorId.isBlank()) {
-            return visitRepository.findByDoctorIdOrderByDateDesc(doctorId);
-        }
-        return List.of();
+        return patientService.listRecentVisits(doctorId, role);
     }
 }

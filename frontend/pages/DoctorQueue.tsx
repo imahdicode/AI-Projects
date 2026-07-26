@@ -12,7 +12,7 @@ import {
   Activity,
   Ticket
 } from 'lucide-react';
-import { patientService, sessionService } from '../services/apiService';
+import { patientService, sessionService, queueService } from '../services/apiService';
 import { Patient, QueueItem, Vitals } from '../types';
 
 export const DoctorQueue: React.FC = () => {
@@ -33,49 +33,37 @@ export const DoctorQueue: React.FC = () => {
   });
 
   useEffect(() => {
-    const fetchPatients = async () => {
+    const fetchPatientsAndQueue = async () => {
       try {
         setLoading(true);
-        const data = await patientService.getAll();
-        setPatients(data);
+        const [pData, qData] = await Promise.all([
+          patientService.getAll(),
+          queueService.list()
+        ]);
+        setPatients(pData);
+        if (activeDoctor && activeDoctor.role !== 'ADMIN' && activeDoctor.username?.toLowerCase() !== 'mahdi') {
+          setQueue(qData.filter(q => !q.doctorId || q.doctorId === activeDoctor.id));
+        } else {
+          setQueue(qData);
+        }
       } catch (err) {
-        console.error('Failed to load patients for queue:', err);
+        console.error('Failed to load queue:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchPatients();
-
-    const savedQueue = localStorage.getItem('mediscript_patient_queue');
-    if (savedQueue) {
-      try {
-        const parsed: QueueItem[] = JSON.parse(savedQueue);
-        if (activeDoctor && activeDoctor.role !== 'ADMIN' && activeDoctor.username?.toLowerCase() !== 'mahdi') {
-          setQueue(parsed.filter(q => !q.doctorId || q.doctorId === activeDoctor.id));
-        } else {
-          setQueue(parsed);
-        }
-      } catch (e) {
-        setQueue([]);
-      }
-    }
+    fetchPatientsAndQueue();
   }, []);
 
-  const updateQueue = (newQueue: QueueItem[]) => {
-    setQueue(newQueue);
-    localStorage.setItem('mediscript_patient_queue', JSON.stringify(newQueue));
-  };
-
-  const handleAddToQueue = (patient: Patient) => {
+  const handleAddToQueue = async (patient: Patient) => {
     if (queue.some(q => q.patientId === patient.id && q.status !== 'COMPLETED')) {
       alert(`${patient.name} is already in today's active queue!`);
       return;
     }
 
     const nextToken = queue.length + 1;
-    const newItem: QueueItem = {
-      id: `q-${Date.now()}`,
+    const newItem: Partial<QueueItem> = {
       patientId: patient.id,
       patientName: patient.name,
       age: patient.age,
@@ -87,17 +75,19 @@ export const DoctorQueue: React.FC = () => {
       vitals: { ...receptionVitals }
     };
 
-    updateQueue([...queue, newItem]);
-    setSelectedTokenToPrint(newItem);
+    const saved = await queueService.create(newItem);
+    setQueue(prev => [...prev, saved]);
+    setSelectedTokenToPrint(saved);
   };
 
-  const handleStatusChange = (queueId: string, newStatus: 'WAITING' | 'IN_CONSULTATION' | 'COMPLETED') => {
-    const updated = queue.map(q => q.id === queueId ? { ...q, status: newStatus } : q);
-    updateQueue(updated);
+  const handleStatusChange = async (queueId: string, newStatus: 'WAITING' | 'IN_CONSULTATION' | 'COMPLETED') => {
+    setQueue(prev => prev.map(q => q.id === queueId ? { ...q, status: newStatus } : q));
+    await queueService.update(queueId, { status: newStatus });
   };
 
-  const handleRemoveFromQueue = (queueId: string) => {
-    updateQueue(queue.filter(q => q.id !== queueId));
+  const handleRemoveFromQueue = async (queueId: string) => {
+    setQueue(prev => prev.filter(q => q.id !== queueId));
+    await queueService.delete(queueId);
   };
 
   const waitingList = queue.filter(q => q.status === 'WAITING');

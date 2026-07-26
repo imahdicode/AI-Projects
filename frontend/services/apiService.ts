@@ -1,4 +1,4 @@
-import { Patient, Visit, ClinicSettings, MedicineTemplate, User, ClinicBranch } from '../types';
+import { Patient, Visit, ClinicSettings, MedicineTemplate, User, ClinicBranch, QueueItem, InventoryItem } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
@@ -539,4 +539,149 @@ export const sessionService = {
     sessionStorage.removeItem(USER_KEY);
     memoryCache.clear();
   },
+};
+
+// OPD Queue Service with DB persistence & offline sync
+const LOCAL_QUEUE_KEY = 'mediscript_queue';
+export const queueService = {
+  list: async (): Promise<QueueItem[]> => {
+    try {
+      const items = await fetchAPI<QueueItem[]>('/api/queue', { headers: getAuthHeaders() });
+      if (Array.isArray(items)) {
+        localStorage.setItem(LOCAL_QUEUE_KEY, JSON.stringify(items));
+        return items;
+      }
+    } catch (e) {}
+    const local = localStorage.getItem(LOCAL_QUEUE_KEY);
+    return local ? JSON.parse(local) : [];
+  },
+
+  create: async (item: Partial<QueueItem>): Promise<QueueItem> => {
+    try {
+      const created = await fetchAPI<QueueItem>('/api/queue', {
+        method: 'POST',
+        body: JSON.stringify(item),
+        headers: getAuthHeaders(),
+      });
+      return created;
+    } catch (e) {
+      const fallback: QueueItem = {
+        id: item.id || `q-${Date.now()}`,
+        patientId: item.patientId || '',
+        patientName: item.patientName || 'Unknown Patient',
+        age: item.age || 0,
+        gender: item.gender || 'Male',
+        status: item.status || 'WAITING',
+        registeredAt: item.registeredAt || new Date().toISOString(),
+        tokenNumber: item.tokenNumber || 1,
+        doctorId: item.doctorId,
+      };
+      const raw = localStorage.getItem(LOCAL_QUEUE_KEY);
+      const list: QueueItem[] = raw ? JSON.parse(raw) : [];
+      list.push(fallback);
+      localStorage.setItem(LOCAL_QUEUE_KEY, JSON.stringify(list));
+      return fallback;
+    }
+  },
+
+  update: async (id: string, item: Partial<QueueItem>): Promise<QueueItem> => {
+    try {
+      return await fetchAPI<QueueItem>(`/api/queue/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(item),
+        headers: getAuthHeaders(),
+      });
+    } catch (e) {
+      const raw = localStorage.getItem(LOCAL_QUEUE_KEY);
+      const list: QueueItem[] = raw ? JSON.parse(raw) : [];
+      const idx = list.findIndex(q => q.id === id);
+      if (idx >= 0) {
+        list[idx] = { ...list[idx], ...item };
+        localStorage.setItem(LOCAL_QUEUE_KEY, JSON.stringify(list));
+        return list[idx];
+      }
+      throw e;
+    }
+  },
+
+  delete: async (id: string): Promise<void> => {
+    try {
+      await fetchAPI(`/api/queue/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
+    } catch (e) {}
+    const raw = localStorage.getItem(LOCAL_QUEUE_KEY);
+    if (raw) {
+      const list: QueueItem[] = JSON.parse(raw);
+      localStorage.setItem(LOCAL_QUEUE_KEY, JSON.stringify(list.filter(q => q.id !== id)));
+    }
+  }
+};
+
+// Pharmacy Inventory Service with DB persistence & offline sync
+const LOCAL_INVENTORY_KEY = 'mediscript_inventory';
+export const inventoryService = {
+  list: async (): Promise<InventoryItem[]> => {
+    try {
+      const items = await fetchAPI<InventoryItem[]>('/api/inventory');
+      if (Array.isArray(items)) {
+        localStorage.setItem(LOCAL_INVENTORY_KEY, JSON.stringify(items));
+        return items;
+      }
+    } catch (e) {}
+    const local = localStorage.getItem(LOCAL_INVENTORY_KEY);
+    return local ? JSON.parse(local) : [];
+  },
+
+  create: async (item: Partial<InventoryItem>): Promise<InventoryItem> => {
+    try {
+      return await fetchAPI<InventoryItem>('/api/inventory', {
+        method: 'POST',
+        body: JSON.stringify(item),
+      });
+    } catch (e) {
+      const fallback: InventoryItem = {
+        id: item.id || `inv-${Date.now()}`,
+        name: item.name || 'Medicine',
+        stockQuantity: item.stockQuantity || 0,
+        unitPrice: item.unitPrice || 0,
+        category: item.category || 'General',
+        expiryDate: item.expiryDate || '',
+        batchNumber: item.batchNumber || '',
+      };
+      const raw = localStorage.getItem(LOCAL_INVENTORY_KEY);
+      const list: InventoryItem[] = raw ? JSON.parse(raw) : [];
+      list.push(fallback);
+      localStorage.setItem(LOCAL_INVENTORY_KEY, JSON.stringify(list));
+      return fallback;
+    }
+  },
+
+  update: async (id: string, item: Partial<InventoryItem>): Promise<InventoryItem> => {
+    try {
+      return await fetchAPI<InventoryItem>(`/api/inventory/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(item),
+      });
+    } catch (e) {
+      const raw = localStorage.getItem(LOCAL_INVENTORY_KEY);
+      const list: InventoryItem[] = raw ? JSON.parse(raw) : [];
+      const idx = list.findIndex(i => i.id === id);
+      if (idx >= 0) {
+        list[idx] = { ...list[idx], ...item };
+        localStorage.setItem(LOCAL_INVENTORY_KEY, JSON.stringify(list));
+        return list[idx];
+      }
+      throw e;
+    }
+  },
+
+  delete: async (id: string): Promise<void> => {
+    try {
+      await fetchAPI(`/api/inventory/${id}`, { method: 'DELETE' });
+    } catch (e) {}
+    const raw = localStorage.getItem(LOCAL_INVENTORY_KEY);
+    if (raw) {
+      const list: InventoryItem[] = JSON.parse(raw);
+      localStorage.setItem(LOCAL_INVENTORY_KEY, JSON.stringify(list.filter(i => i.id !== id)));
+    }
+  }
 };

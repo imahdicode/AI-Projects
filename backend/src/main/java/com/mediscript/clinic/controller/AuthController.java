@@ -1,11 +1,8 @@
 package com.mediscript.clinic.controller;
 
 import java.util.List;
-import java.util.UUID;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -15,164 +12,75 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.mediscript.clinic.model.User;
-import com.mediscript.clinic.repository.UserRepository;
+import com.mediscript.clinic.service.AuthService;
 
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    @Autowired
-    private UserRepository userRepository;
+    private final AuthService authService;
 
-    @Autowired
-    private PasswordEncoder passwordEncoder;
-
-    @Autowired
-    private com.mediscript.clinic.security.JwtUtils jwtUtils;
+    public AuthController(AuthService authService) {
+        this.authService = authService;
+    }
 
     // ── LOGIN ──────────────────────────────────────────────────────────────
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
-        if (request.getUsername() == null || request.getUsername().trim().isEmpty()) {
-            return ResponseEntity.badRequest().body("Username or license number is required.");
+        try {
+            User user = authService.authenticate(request);
+            return ResponseEntity.ok(user);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(401).body(e.getMessage());
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(403).body(e.getMessage());
         }
-
-        String inputKey = request.getUsername().trim();
-
-        // 1. Search by username (case-insensitive)
-        User user = userRepository.findByUsernameIgnoreCase(inputKey).orElse(null);
-
-        // 2. Fallback: Search by license number (case-insensitive)
-        if (user == null) {
-            user = userRepository.findByLicenseNumberIgnoreCase(inputKey).orElse(null);
-        }
-
-        if (user == null) {
-            return ResponseEntity.status(401).body("No account found matching '" + inputKey + "'.");
-        }
-
-        // Reject PENDING accounts — they must activate first
-        if ("PENDING".equalsIgnoreCase(user.getStatus())) {
-            return ResponseEntity.status(403).body(
-                "Account not yet activated. Please use 'First Login' tab to set your username and password."
-            );
-        }
-
-        // Password check (BCrypt with fallback plain text upgrade)
-        String expectedPassword = user.getPassword() != null ? user.getPassword() : "";
-        String providedPassword = request.getPassword() != null ? request.getPassword() : "";
-
-        boolean matches = passwordEncoder.matches(providedPassword, expectedPassword);
-        if (!matches && expectedPassword.equals(providedPassword)) {
-            matches = true;
-            // Upgrade plain text password to BCrypt hash
-            user.setPassword(passwordEncoder.encode(providedPassword));
-            userRepository.save(user);
-        }
-
-        if (!matches) {
-            return ResponseEntity.status(401).body("Incorrect password.");
-        }
-
-        user.setToken(jwtUtils.generateToken(user));
-        return ResponseEntity.ok(user);
     }
 
     // ── GET ALL DOCTORS (role = DOCTOR only, excludes admin) ───────────────
     @GetMapping("/doctors")
     public List<User> getDoctors() {
-        return userRepository.findByRole("DOCTOR");
+        return authService.getDoctors();
     }
 
     // ── REGISTER DOCTOR (admin only — creates PENDING account) ─────────────
     @PostMapping("/register")
     public ResponseEntity<?> registerDoctor(@RequestBody RegisterRequest req) {
-        if (req.getName() == null || req.getName().trim().isEmpty()) {
-            return ResponseEntity.badRequest().body("Doctor name is required.");
+        try {
+            User doctor = authService.registerDoctor(req);
+            return ResponseEntity.ok(doctor);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         }
-        if (req.getLicenseNumber() == null || req.getLicenseNumber().trim().isEmpty()) {
-            return ResponseEntity.badRequest().body("License number is required.");
-        }
-
-        String cleanLicense = req.getLicenseNumber().trim();
-
-        // Validate license number is unique
-        if (userRepository.findByLicenseNumberIgnoreCase(cleanLicense).isPresent()) {
-            return ResponseEntity.badRequest().body("A doctor with license number '" + cleanLicense + "' already exists.");
-        }
-
-        User doctor = new User();
-        doctor.setId("doc-" + UUID.randomUUID().toString().substring(0, 8));
-        doctor.setName(req.getName().trim());
-        doctor.setSpecialization(req.getSpecialization() != null && !req.getSpecialization().trim().isEmpty() ? req.getSpecialization().trim() : "General Physician");
-        doctor.setLicenseNumber(cleanLicense);
-        doctor.setPhone(req.getPhone() != null ? req.getPhone().trim() : "");
-        doctor.setAssignedBranchId(req.getAssignedBranchId());
-        doctor.setRole("DOCTOR");
-        doctor.setStatus("PENDING"); // Must activate via /activate before they can log in
-
-        return ResponseEntity.ok(userRepository.save(doctor));
     }
 
     // ── ACTIVATE ACCOUNT (doctor's first login — sets username + password) ──
     @PostMapping("/activate")
     public ResponseEntity<?> activateAccount(@RequestBody ActivateRequest req) {
-        if (req.getLicenseNumber() == null || req.getLicenseNumber().trim().isEmpty()) {
-            return ResponseEntity.badRequest().body("License number is required.");
+        try {
+            User doctor = authService.activateAccount(req);
+            return ResponseEntity.ok(doctor);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         }
-        if (req.getUsername() == null || req.getUsername().trim().isEmpty()) {
-            return ResponseEntity.badRequest().body("Username is required.");
-        }
-        if (req.getPassword() == null || req.getPassword().trim().length() < 6) {
-            return ResponseEntity.badRequest().body("Password must be at least 6 characters long.");
-        }
-
-        String cleanLicense = req.getLicenseNumber().trim();
-        String cleanUsername = req.getUsername().trim().toLowerCase();
-
-        // Find PENDING doctor by license number
-        User doctor = userRepository.findByLicenseNumberIgnoreCaseAndStatus(cleanLicense, "PENDING").orElse(null);
-
-        if (doctor == null) {
-            return ResponseEntity.status(404).body(
-                "No pending account found for license '" + cleanLicense + "'. " +
-                "It may have already been activated or the license number is invalid."
-            );
-        }
-
-        // Check username is not already taken
-        if (userRepository.findByUsernameIgnoreCase(cleanUsername).isPresent()) {
-            return ResponseEntity.badRequest().body(
-                "Username '" + cleanUsername + "' is already taken. Please choose another username."
-            );
-        }
-
-        // Activate the account with BCrypt hashed password
-        doctor.setUsername(cleanUsername);
-        doctor.setPassword(passwordEncoder.encode(req.getPassword()));
-        doctor.setStatus("ACTIVE");
-
-        return ResponseEntity.ok(userRepository.save(doctor));
     }
 
-    // ── DELETE DOCTOR BY ID ────────────────────────────────────────────────
+    // ── DELETE DOCTOR BY ID / USERNAME / LICENSE ────────────────────────────
     @DeleteMapping("/doctors/{id}")
     public ResponseEntity<?> deleteDoctorById(@PathVariable String id) {
-        userRepository.deleteById(id);
+        authService.deleteDoctor(id);
         return ResponseEntity.ok().build();
     }
 
-    // ── DELETE DOCTOR BY USERNAME ──────────────────────────────────────────
     @DeleteMapping("/doctors/username/{username}")
     public ResponseEntity<?> deleteDoctorByUsername(@PathVariable String username) {
-        userRepository.findByUsernameIgnoreCase(username).ifPresent(userRepository::delete);
+        authService.deleteDoctor(username);
         return ResponseEntity.ok().build();
     }
 
-    // ── DELETE DOCTOR BY LICENSE NUMBER ────────────────────────────────────
     @DeleteMapping("/doctors/license/{licenseNumber}")
     public ResponseEntity<?> deleteDoctorByLicense(@PathVariable String licenseNumber) {
-        userRepository.findByLicenseNumberIgnoreCase(licenseNumber).ifPresent(userRepository::delete);
+        authService.deleteDoctor(licenseNumber);
         return ResponseEntity.ok().build();
     }
 

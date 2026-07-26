@@ -9,6 +9,10 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
 @Entity
 @Table(name = "patients")
 public class Patient {
@@ -16,9 +20,13 @@ public class Patient {
     @Id
     private String id;
 
+    @NotBlank(message = "Patient name is required")
     private String name;
+
+    @Min(value = 0, message = "Age must be zero or positive")
     private int age;
 
+    @NotNull(message = "Gender is required")
     @Enumerated(EnumType.STRING)
     private Gender gender;
 

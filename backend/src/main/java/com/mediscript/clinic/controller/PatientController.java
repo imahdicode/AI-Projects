@@ -1,11 +1,10 @@
 package com.mediscript.clinic.controller;
 
-import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
+
+import jakarta.validation.Valid;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,35 +18,25 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.mediscript.clinic.model.Patient;
 import com.mediscript.clinic.model.Visit;
-import com.mediscript.clinic.repository.PatientRepository;
-import com.mediscript.clinic.repository.VisitRepository;
+import com.mediscript.clinic.service.PatientService;
 
 @RestController
 @RequestMapping("/api/patients")
 public class PatientController {
 
-    private final PatientRepository patientRepository;
-    private final VisitRepository visitRepository;
+    private final PatientService patientService;
 
-    public PatientController(PatientRepository patientRepository, VisitRepository visitRepository) {
-        this.patientRepository = patientRepository;
-        this.visitRepository = visitRepository;
+    public PatientController(PatientService patientService) {
+        this.patientService = patientService;
     }
 
     // ── GET ALL PATIENTS ───────────────────────────────────────────────────
-    // Admin sees everyone; doctors see only their own patients
     @GetMapping
     public List<Patient> list(
         @RequestHeader(value = "X-Doctor-Id", required = false) String doctorId,
         @RequestHeader(value = "X-Doctor-Role", required = false) String role
     ) {
-        if ("ADMIN".equalsIgnoreCase(role)) {
-            return patientRepository.findAll();
-        }
-        if (doctorId != null && !doctorId.isBlank()) {
-            return patientRepository.findByDoctorId(doctorId);
-        }
-        return List.of(); // No identity = no data
+        return patientService.listPatients(doctorId, role);
     }
 
     // ── GET SINGLE PATIENT ─────────────────────────────────────────────────
@@ -57,79 +46,40 @@ public class PatientController {
         @RequestHeader(value = "X-Doctor-Id", required = false) String doctorId,
         @RequestHeader(value = "X-Doctor-Role", required = false) String role
     ) {
-        Patient patient = patientRepository.findById(id)
-            .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
-
-        // Access check: doctors can only access their own patients
-        if (!"ADMIN".equalsIgnoreCase(role) && doctorId != null && !doctorId.equals(patient.getDoctorId())) {
-            throw new ResourceNotFoundException("Patient not found");
-        }
-        return patient;
+        return patientService.getPatient(id, doctorId, role);
     }
 
     // ── CREATE PATIENT ─────────────────────────────────────────────────────
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public Patient create(
-        @RequestBody Patient patient,
+        @Valid @RequestBody Patient patient,
         @RequestHeader(value = "X-Doctor-Id", required = false) String doctorId,
         @RequestHeader(value = "X-Doctor-Role", required = false) String role
     ) {
-        if (patient.getId() == null || patient.getId().isBlank()) {
-            patient.setId("P-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
-        }
-        if (patient.getCreatedAt() == null) {
-            patient.setCreatedAt(LocalDateTime.now());
-        }
-        // Assign patient to the creating doctor (admin's patients get id "1")
-        if (patient.getDoctorId() == null || patient.getDoctorId().isBlank()) {
-            patient.setDoctorId(doctorId != null ? doctorId : "1");
-        }
-        return patientRepository.save(patient);
+        return patientService.createPatient(patient, doctorId, role);
     }
 
     // ── UPDATE PATIENT ─────────────────────────────────────────────────────
     @PutMapping("/{id}")
     public Patient update(
         @PathVariable String id,
-        @RequestBody Patient patient,
+        @Valid @RequestBody Patient patient,
         @RequestHeader(value = "X-Doctor-Id", required = false) String doctorId,
         @RequestHeader(value = "X-Doctor-Role", required = false) String role
     ) {
-        Patient existing = patientRepository.findById(id)
-            .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
-
-        // Access check
-        if (!"ADMIN".equalsIgnoreCase(role) && doctorId != null && !doctorId.equals(existing.getDoctorId())) {
-            throw new ResourceNotFoundException("Patient not found");
-        }
-
-        patient.setId(id);
-        // Preserve the original doctorId — don't let it get overwritten
-        if (patient.getDoctorId() == null || patient.getDoctorId().isBlank()) {
-            patient.setDoctorId(existing.getDoctorId());
-        }
-        return patientRepository.save(patient);
+        return patientService.updatePatient(id, patient, doctorId, role);
     }
 
     // ── DELETE PATIENT ─────────────────────────────────────────────────────
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Transactional
     public void delete(
         @PathVariable String id,
         @RequestHeader(value = "X-Doctor-Id", required = false) String doctorId,
         @RequestHeader(value = "X-Doctor-Role", required = false) String role
     ) {
-        Patient existing = patientRepository.findById(id).orElse(null);
-        if (existing != null) {
-            // Access check
-            if (!"ADMIN".equalsIgnoreCase(role) && doctorId != null && !doctorId.equals(existing.getDoctorId())) {
-                throw new ResourceNotFoundException("Patient not found");
-            }
-            visitRepository.deleteByPatientId(id);
-            patientRepository.deleteById(id);
-        }
+        patientService.deletePatient(id, doctorId, role);
     }
 
     // ── GET PATIENT VISITS ─────────────────────────────────────────────────
@@ -139,12 +89,7 @@ public class PatientController {
         @RequestHeader(value = "X-Doctor-Id", required = false) String doctorId,
         @RequestHeader(value = "X-Doctor-Role", required = false) String role
     ) {
-        // Verify patient access first
-        Patient patient = patientRepository.findById(id).orElse(null);
-        if (patient != null && !"ADMIN".equalsIgnoreCase(role) && doctorId != null && !doctorId.equals(patient.getDoctorId())) {
-            return List.of();
-        }
-        return visitRepository.findByPatientIdOrderByDateDesc(id);
+        return patientService.getPatientVisits(id, doctorId, role);
     }
 
     // ── CREATE VISIT ───────────────────────────────────────────────────────
@@ -156,15 +101,7 @@ public class PatientController {
         @RequestHeader(value = "X-Doctor-Id", required = false) String doctorId,
         @RequestHeader(value = "X-Doctor-Role", required = false) String role
     ) {
-        visit.setId(visit.getId() == null || visit.getId().isBlank() ? UUID.randomUUID().toString() : visit.getId());
-        visit.setPatientId(id);
-        if (visit.getDate() == null) {
-            visit.setDate(LocalDateTime.now());
-        }
-        // Stamp the visit with the creating doctor's ID
-        if (visit.getDoctorId() == null || visit.getDoctorId().isBlank()) {
-            visit.setDoctorId(doctorId);
-        }
-        return visitRepository.save(visit);
+        return patientService.createVisit(id, visit, doctorId, role);
+    }
     }
 }

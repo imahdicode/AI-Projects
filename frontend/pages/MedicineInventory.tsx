@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Pill, Plus, Search, AlertTriangle, CheckCircle2, Trash2, Package, Edit3 } from 'lucide-react';
 import { Button } from '../components/Button';
 import { InventoryItem } from '../types';
+import { inventoryService } from '../services/apiService';
 
 export const MedicineInventory: React.FC = () => {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
@@ -19,19 +20,23 @@ export const MedicineInventory: React.FC = () => {
   });
 
   useEffect(() => {
-    const saved = localStorage.getItem('mediscript_inventory');
-    if (saved) {
+    const fetchInventory = async () => {
       try {
-        setInventory(JSON.parse(saved));
+        const items = await inventoryService.list();
+        if (items.length === 0) {
+          await initDefaultInventory();
+        } else {
+          setInventory(items);
+        }
       } catch (e) {
-        initDefaultInventory();
+        console.error('Failed to fetch inventory:', e);
       }
-    } else {
-      initDefaultInventory();
-    }
+    };
+
+    fetchInventory();
   }, []);
 
-  const initDefaultInventory = () => {
+  const initDefaultInventory = async () => {
     const defaults: InventoryItem[] = [
       { id: 'inv-1', name: 'Paracetamol 500mg', stockQuantity: 250, unitPrice: 5, category: 'Analgesics', batchNumber: 'PCM-9912', expiryDate: '2027-08-30' },
       { id: 'inv-2', name: 'Amoxicillin 500mg', stockQuantity: 15, unitPrice: 25, category: 'Antibiotics', batchNumber: 'AMX-4410', expiryDate: '2026-11-15' },
@@ -41,19 +46,15 @@ export const MedicineInventory: React.FC = () => {
       { id: 'inv-6', name: 'Azithromycin 500mg', stockQuantity: 5, unitPrice: 45, category: 'Antibiotics', batchNumber: 'AZT-8812', expiryDate: '2026-10-01' }
     ];
     setInventory(defaults);
-    localStorage.setItem('mediscript_inventory', JSON.stringify(defaults));
+    for (const d of defaults) {
+      await inventoryService.create(d);
+    }
   };
 
-  const updateInventory = (items: InventoryItem[]) => {
-    setInventory(items);
-    localStorage.setItem('mediscript_inventory', JSON.stringify(items));
-  };
-
-  const handleAddItem = (e: React.FormEvent) => {
+  const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newItem.name) return;
-    const item: InventoryItem = {
-      id: `inv-${Date.now()}`,
+    const itemPayload: Partial<InventoryItem> = {
       name: newItem.name,
       stockQuantity: Number(newItem.stockQuantity) || 0,
       unitPrice: Number(newItem.unitPrice) || 0,
@@ -61,25 +62,24 @@ export const MedicineInventory: React.FC = () => {
       batchNumber: newItem.batchNumber || 'BATCH-001',
       expiryDate: newItem.expiryDate || '2027-12-31'
     };
-    updateInventory([...inventory, item]);
+    const created = await inventoryService.create(itemPayload);
+    setInventory(prev => [...prev, created]);
     setShowAddModal(false);
     setNewItem({ name: '', stockQuantity: 100, unitPrice: 15, category: 'Tablets', batchNumber: 'BATCH-2026-A', expiryDate: '2027-12-31' });
   };
 
-  const adjustStock = (id: string, delta: number) => {
-    const updated = inventory.map(item => {
-      if (item.id === id) {
-        const newQty = Math.max(0, item.stockQuantity + delta);
-        return { ...item, stockQuantity: newQty };
-      }
-      return item;
-    });
-    updateInventory(updated);
+  const adjustStock = async (id: string, delta: number) => {
+    const target = inventory.find(i => i.id === id);
+    if (!target) return;
+    const newQty = Math.max(0, target.stockQuantity + delta);
+    setInventory(prev => prev.map(item => item.id === id ? { ...item, stockQuantity: newQty } : item));
+    await inventoryService.update(id, { ...target, stockQuantity: newQty });
   };
 
-  const handleDeleteItem = (id: string) => {
+  const handleDeleteItem = async (id: string) => {
     if (confirm('Delete this medicine from inventory?')) {
-      updateInventory(inventory.filter(i => i.id !== id));
+      setInventory(prev => prev.filter(i => i.id !== id));
+      await inventoryService.delete(id);
     }
   };
 
