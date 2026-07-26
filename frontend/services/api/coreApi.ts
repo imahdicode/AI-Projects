@@ -1,4 +1,17 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+const getApiBaseUrl = (): string => {
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return 'http://localhost:8080';
+    }
+  }
+  return 'https://mediscript-api.onrender.com';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 // Fast In-Memory Cache for sub-millisecond tab switching
 const memoryCache = new Map<string, { timestamp: number; data: any }>();
